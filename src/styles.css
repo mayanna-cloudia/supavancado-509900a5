@@ -48,7 +48,18 @@
 
 @layer base {
   :root {
-    --radius: 0.625rem;
+    --radius: 0.75rem;
+
+    /* Elevation system — subtle depth on a dark surface */
+    --shadow-xs: 0 1px 2px 0 oklch(0 0 0 / 0.20);
+    --shadow-sm: 0 2px 6px -1px oklch(0 0 0 / 0.28), 0 1px 2px -1px oklch(0 0 0 / 0.22);
+    --shadow-md: 0 8px 22px -8px oklch(0 0 0 / 0.40), 0 2px 6px -2px oklch(0 0 0 / 0.30);
+    --shadow-lg: 0 18px 40px -16px oklch(0 0 0 / 0.55), 0 6px 12px -4px oklch(0 0 0 / 0.30);
+    --shadow-glow-blue: 0 8px 30px -8px color-mix(in oklab, var(--brand-blue) 35%, transparent);
+
+    /* Easing curves */
+    --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+    --ease-out-smooth: cubic-bezier(0.16, 1, 0.3, 1);
 
     /* Cloudia palette - dark by default */
     --background: oklch(0.13 0.02 265);          /* #07080d */
@@ -104,12 +115,16 @@
     color: var(--color-foreground);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
 
-  h1, h2, h3, h4 {
-    font-family: var(--font-display);
-    letter-spacing: -0.02em;
-  }
+  h1 { font-family: var(--font-display); letter-spacing: -0.035em; line-height: 1.05; font-weight: 600; }
+  h2 { font-family: var(--font-display); letter-spacing: -0.03em;  line-height: 1.1;  font-weight: 600; }
+  h3 { font-family: var(--font-display); letter-spacing: -0.025em; line-height: 1.15; font-weight: 600; }
+  h4 { font-family: var(--font-display); letter-spacing: -0.02em;  line-height: 1.2;  font-weight: 600; }
+
+  /* Smoother scroll feel on iOS/Safari */
+  html { -webkit-text-size-adjust: 100%; }
 }
 
 @layer utilities {
@@ -120,7 +135,33 @@
     background: linear-gradient(135deg, color-mix(in oklab, var(--card) 95%, transparent), color-mix(in oklab, var(--surface) 90%, transparent));
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    transition:
+      transform 0.35s var(--ease-out-soft),
+      box-shadow 0.35s var(--ease-out-soft),
+      border-color 0.25s var(--ease-out-soft);
   }
+  .glass-card:hover {
+    box-shadow: var(--shadow-md);
+    border-color: color-mix(in oklab, var(--border) 70%, var(--primary) 30%);
+  }
+  .glass-card-static { box-shadow: var(--shadow-sm); }
+  .glass-card-static:hover { box-shadow: var(--shadow-sm); border-color: var(--border); }
+
+  /* Hover lift used on interactive cards/buttons */
+  .hover-lift { transition: transform 0.25s var(--ease-out-soft), box-shadow 0.25s var(--ease-out-soft); }
+  .hover-lift:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+
+  /* Tab content swap */
+  .tab-enter { animation: tab-enter 0.32s var(--ease-out-smooth) both; }
+  @keyframes tab-enter {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Hide scrollbars on horizontally scrolling tab strips */
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
 
   .pulse-dot {
     position: relative;
