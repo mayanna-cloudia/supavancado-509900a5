@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import type { CaseRow } from "@/lib/supabase";
-import { SLA_MINUTES, fmtDuration, priorityBadgeClass } from "@/lib/format";
+import { SLA_MINUTES, fmtDuration, fmtFirstResponse, priorityBadgeClass } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { lookupMember, normalizeResolverTeam, AREA_BADGE, type Area } from "@/lib/team";
 
@@ -138,7 +138,18 @@ export function SLATab({ rows, onRowClick }: { rows: CaseRow[]; onRowClick: (r: 
                       <tr key={r.id} onClick={() => onRowClick(r)} className="border-b border-border/30 hover:bg-surface/40 cursor-pointer">
                         <td className="px-4 py-2 font-mono text-xs">{r.idclinic || "—"}</td>
                         <td className="px-4 py-2 max-w-[380px] truncate" title={r.thread_title || ""}>{r.thread_title || "(sem título)"}</td>
-                        <td className="px-3 py-2 text-xs tabular-nums">{fmtDuration(fr ?? null)}</td>
+                        <td className="px-3 py-2 text-xs tabular-nums">
+                          {fr == null ? (
+                            <span className="text-muted-foreground">—</span>
+                          ) : (
+                            <span
+                              className="font-semibold"
+                              style={{ color: inSla ? "var(--brand-green)" : "var(--brand-red)" }}
+                            >
+                              {fmtFirstResponse(fr)}
+                            </span>
+                          )}
+                        </td>
                         <td className="px-3 py-2">
                           {fr == null ? (
                             <span className="text-xs text-muted-foreground">—</span>

@@ -55,6 +55,7 @@ export type Analysis = {
   resolver_name: string | null;
   resolver_team: string | null;
   analyzed_at: string;
+  first_response_minutes?: number | null;
 };
 
 export type CaseRow = Case & {

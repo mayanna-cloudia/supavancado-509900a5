@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import type { CaseRow } from "@/lib/supabase";
-import { priorityBadgeClass, fmtDuration } from "@/lib/format";
+import { priorityBadgeClass, fmtFirstResponse, isWithinSLA } from "@/lib/format";
 import { lookupMember, normalizeResolverTeam, AREA_BADGE, AREA_LABEL, type Area } from "@/lib/team";
 
 export type Filters = {
@@ -235,8 +235,18 @@ export function CasesTable({ rows, onRowClick }: { rows: CaseRow[]; onRowClick: 
                   <td className="px-4 py-3 max-w-[320px] truncate text-xs text-muted-foreground" title={a?.summary || ""}>
                     {a?.summary || <span className="italic">aguardando análise</span>}
                   </td>
-                  <td className="px-3 py-3 text-xs tabular-nums text-foreground/80">
-                    {fmtDuration(r.first_response_minutes ?? null)}
+                  <td className="px-3 py-3 text-xs tabular-nums">
+                    {(() => {
+                      const fr = r.first_response_minutes ?? null;
+                      const ok = isWithinSLA(fr, a?.priority);
+                      const color =
+                        ok === true ? "var(--brand-green)" : ok === false ? "var(--brand-red)" : undefined;
+                      return (
+                        <span style={color ? { color } : undefined} className={cn("font-semibold", color ? "" : "text-foreground/80")}>
+                          {fmtFirstResponse(fr)}
+                        </span>
+                      );
+                    })()}
                   </td>
                   <td className="px-3 py-3">
                     {team ? (

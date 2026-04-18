@@ -59,3 +59,23 @@ export const SLA_MINUTES: Record<string, number> = {
   P2: 2 * 60,
   P3: 30,
 };
+
+// Format first response: minutes if <60, else hours with 1 decimal
+export function fmtFirstResponse(minutes: number | null | undefined): string {
+  if (minutes == null || isNaN(minutes)) return "—";
+  if (minutes < 1) return "<1 min";
+  if (minutes < 60) return `${Math.round(minutes)} min`;
+  return `${(minutes / 60).toFixed(1)} h`;
+}
+
+// Returns true if first response is within SLA for the priority. null if not measurable.
+export function isWithinSLA(
+  minutes: number | null | undefined,
+  priority: string | null | undefined
+): boolean | null {
+  if (minutes == null || isNaN(minutes)) return null;
+  const p = (priority || "").toUpperCase();
+  const sla = SLA_MINUTES[p];
+  if (!sla) return null;
+  return minutes <= sla;
+}
