@@ -32,7 +32,7 @@ function Dashboard() {
       <Header live={live} lastEvent={lastEvent} />
       <Tabs value={tab} onChange={setTab} />
 
-      <main className="mx-auto max-w-[1600px] px-6 py-6">
+      <main className="mx-auto max-w-[1600px] px-3 sm:px-6 py-4 sm:py-6">
         {error && (
           <div className="mb-4 rounded-lg border border-[var(--brand-red)]/40 bg-[var(--brand-red)]/10 px-4 py-3 text-sm text-[var(--brand-red)]">
             Erro ao conectar com o Supabase: {error}
@@ -45,17 +45,17 @@ function Dashboard() {
             Carregando dados em tempo real…
           </div>
         ) : (
-          <>
+          <div key={tab} className="tab-enter">
             {tab === "overview" && <OverviewTab rows={rows} />}
 
             {tab === "cases" && (
               <div className="space-y-4">
                 <FiltersBar rows={rows} filters={filters} onChange={setFilters} />
-                <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
+                <div className="flex items-center justify-between text-[11px] sm:text-xs text-muted-foreground px-1">
                   <span>
                     {filtered.length.toLocaleString("pt-BR")} de {rows.length.toLocaleString("pt-BR")} casos
                   </span>
-                  <span>Atualização automática via Realtime</span>
+                  <span className="hidden sm:inline">Atualização automática via Realtime</span>
                 </div>
                 <CasesTable rows={filtered} onRowClick={setSelected} />
               </div>
@@ -68,7 +68,7 @@ function Dashboard() {
             {tab === "metrics" && (
               <MetricsTab rows={rows} messagesMap={messages} onRowClick={setSelected} />
             )}
-          </>
+          </div>
         )}
       </main>
 
@@ -79,7 +79,7 @@ function Dashboard() {
         onReanalyzed={refresh}
       />
 
-      <footer className="mx-auto max-w-[1600px] px-6 py-6 text-center text-[11px] text-muted-foreground">
+      <footer className="mx-auto max-w-[1600px] px-3 sm:px-6 py-6 text-center text-[11px] text-muted-foreground">
         Cloudia · Painel interno · {rows.length.toLocaleString("pt-BR")} casos sincronizados
       </footer>
     </div>

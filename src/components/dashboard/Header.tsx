@@ -71,7 +71,7 @@ export function Header({ live, lastEvent }: { live: boolean; lastEvent: number }
         </div>
 
         <div className="flex items-center gap-2 sm:gap-4 shrink-0">
-          <LiveIndicator live={live} lastEvent={lastEvent} />
+          <LiveIndicator active={live} lastEvent={lastEvent} />
           <LiveClock />
         </div>
       </div>
@@ -79,9 +79,3 @@ export function Header({ live, lastEvent }: { live: boolean; lastEvent: number }
   );
 }
 
-// Re-export with the legacy prop name compatibility
-function _typecheck() {
-  // ensure LiveIndicator prop name matches usage
-  return <LiveIndicator active={true} lastEvent={0} />;
-}
-void _typecheck;
