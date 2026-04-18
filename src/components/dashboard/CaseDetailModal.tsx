@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Sparkles, Loader2, X } from "lucide-react";
 import type { CaseRow, Message } from "@/lib/supabase";
 import { ANALYZE_FN_URL, SUPABASE_ANON } from "@/lib/supabase";
-import { fmtDate, fmtDuration, priorityBadgeClass, diffMinutes } from "@/lib/format";
+import { fmtDate, fmtDuration, priorityBadgeClass, diffMinutes, fmtFirstResponse, isWithinSLA } from "@/lib/format";
 import { lookupMember, AREA_BADGE, AREA_LABEL, type Area } from "@/lib/team";
 import { cn } from "@/lib/utils";
 
@@ -37,8 +37,13 @@ export function CaseDetailModal({
     if (!row) return null;
     const opener = messages[0];
     const openerInfo = opener ? lookupMember(opener.author_username) : null;
-    const reply = opener ? messages.find((m) => m.author_username !== opener.author_username) : null;
-    const firstResp = opener && reply ? diffMinutes(row.opened_at, reply.sent_at) : null;
+    // Prefer first_response_minutes from analyses; fallback to computed
+    let firstResp: number | null =
+      row.analysis?.first_response_minutes != null ? row.analysis.first_response_minutes : null;
+    if (firstResp == null) {
+      const reply = opener ? messages.find((m) => m.author_username !== opener.author_username) : null;
+      firstResp = opener && reply ? diffMinutes(row.opened_at, reply.sent_at) : null;
+    }
     const duration = row.closed_at ? diffMinutes(row.opened_at, row.closed_at) : diffMinutes(row.opened_at, row.last_activity_at || new Date().toISOString());
     return { openerInfo, firstResp, duration, count: messages.length };
   }, [row, messages]);
@@ -130,7 +135,17 @@ export function CaseDetailModal({
             <MetaItem label="Data abertura" value={fmtDate(row.opened_at)} />
             <MetaItem label="Duração" value={fmtDuration(meta?.duration ?? null)} />
             <MetaItem label="Nº mensagens" value={String(meta?.count ?? 0)} />
-            <MetaItem label="1ª resposta" value={fmtDuration(meta?.firstResp ?? null)} />
+            <MetaItem
+              label="1ª resposta"
+              value={fmtFirstResponse(meta?.firstResp ?? null)}
+              valueClassName={
+                (() => {
+                  const within = isWithinSLA(meta?.firstResp ?? null, a?.priority);
+                  if (within === null) return undefined;
+                  return within ? "text-[var(--brand-green)]" : "text-[var(--brand-red)]";
+                })()
+              }
+            />
             <MetaItem label="Aberto por" value={meta?.openerInfo?.name || "—"} />
             <MetaItem label="Resolvido por" value={resolverInfo?.name || "—"} />
           </div>
@@ -211,11 +226,11 @@ export function CaseDetailModal({
   );
 }
 
-function MetaItem({ label, value }: { label: string; value: string }) {
+function MetaItem({ label, value, valueClassName }: { label: string; value: string; valueClassName?: string }) {
   return (
     <div className="rounded-lg border border-border/60 bg-surface/40 p-3">
       <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
-      <div className="mt-1 text-sm font-medium text-foreground truncate" title={value}>{value}</div>
+      <div className={cn("mt-1 text-sm font-medium text-foreground truncate", valueClassName)} title={value}>{value}</div>
     </div>
   );
 }
