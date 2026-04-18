@@ -18,6 +18,7 @@ export type Filters = {
   priority: "all" | "P1" | "P2" | "P3";
   status: "all" | "open" | "resolved";
   category: string; // "all" or value
+  resolver: string; // "all" or resolver_name
   search: string;
 };
 
@@ -26,6 +27,7 @@ export const DEFAULT_FILTERS: Filters = {
   priority: "all",
   status: "all",
   category: "all",
+  resolver: "all",
   search: "",
 };
 
@@ -44,6 +46,7 @@ export function applyFilters(rows: CaseRow[], f: Filters): CaseRow[] {
       if (f.status === "open" && resolved) return false;
     }
     if (f.category !== "all" && (r.analysis?.category || "—") !== f.category) return false;
+    if (f.resolver !== "all" && (r.analysis?.resolver_name || "") !== f.resolver) return false;
     if (f.search.trim()) {
       const q = f.search.toLowerCase();
       const blob = [
@@ -71,6 +74,11 @@ export function FiltersBar({
   const categories = useMemo(() => {
     const set = new Set<string>();
     for (const r of rows) if (r.analysis?.category) set.add(r.analysis.category);
+    return Array.from(set).sort();
+  }, [rows]);
+  const resolvers = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of rows) if (r.analysis?.resolver_name) set.add(r.analysis.resolver_name);
     return Array.from(set).sort();
   }, [rows]);
 
@@ -121,6 +129,19 @@ export function FiltersBar({
           <SelectContent className="bg-card border-border max-h-[300px]">
             <SelectItem value="all">Todas as categorias</SelectItem>
             {categories.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+          </SelectContent>
+        </Select>
+
+        {/* Resolver */}
+        <Select value={filters.resolver} onValueChange={(v) => update({ resolver: v })}>
+          <SelectTrigger className="h-8 w-[190px] bg-surface border-border text-xs">
+            <SelectValue placeholder="Quem resolveu" />
+          </SelectTrigger>
+          <SelectContent className="bg-card border-border max-h-[300px]">
+            <SelectItem value="all">Quem resolveu (todos)</SelectItem>
+            {resolvers.map((r) => (
+              <SelectItem key={r} value={r}>{lookupMember(r).name}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
 
