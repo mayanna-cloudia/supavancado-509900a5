@@ -150,12 +150,15 @@ export function useCloudiaData() {
     return state.cases.map((c) => {
       const analysis = state.analyses[c.id] || null;
       const msgs = state.messages[c.id] || [];
-      // first response = first message NOT from the case opener
-      let firstResponse: number | null = null;
-      const opener = msgs[0]?.author_username;
-      if (opener) {
-        const reply = msgs.find((m) => m.author_username !== opener);
-        if (reply) firstResponse = diffMinutes(c.opened_at, reply.sent_at);
+      // Prefer first_response_minutes from analyses table; fallback to computed from messages
+      let firstResponse: number | null =
+        analysis?.first_response_minutes != null ? analysis.first_response_minutes : null;
+      if (firstResponse == null) {
+        const opener = msgs[0]?.author_username;
+        if (opener) {
+          const reply = msgs.find((m) => m.author_username !== opener);
+          if (reply) firstResponse = diffMinutes(c.opened_at, reply.sent_at);
+        }
       }
       return {
         ...c,
