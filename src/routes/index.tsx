@@ -7,6 +7,7 @@ import { CasesTable, FiltersBar, applyFilters, DEFAULT_FILTERS, type Filters } f
 import { CaseDetailModal } from "@/components/dashboard/CaseDetailModal";
 import { SLATab } from "@/components/dashboard/SLATab";
 import { TeamTab } from "@/components/dashboard/TeamTab";
+import { MetricsTab } from "@/components/dashboard/MetricsTab";
 import { useCloudiaData } from "@/lib/useCloudiaData";
 import type { CaseRow } from "@/lib/supabase";
 import { Loader2 } from "lucide-react";
@@ -63,6 +64,10 @@ function Dashboard() {
             {tab === "sla" && <SLATab rows={rows} onRowClick={setSelected} />}
 
             {tab === "team" && <TeamTab rows={rows} messagesMap={messages} />}
+
+            {tab === "metrics" && (
+              <MetricsTab rows={rows} messagesMap={messages} onRowClick={setSelected} />
+            )}
           </>
         )}
       </main>
