@@ -106,7 +106,7 @@ export function SLATab({ rows, onRowClick }: { rows: CaseRow[]; onRowClick: (r: 
 
       <div className="space-y-5">
         {stats.map((s) => (
-          <div key={s.priority} className="glass-card overflow-hidden">
+          <div key={s.priority} className="glass-card glass-card-static overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-surface/40">
               <div className="flex items-center gap-2">
                 <span className={cn("px-2 py-0.5 rounded-md text-xs font-semibold border", priorityBadgeClass(s.priority))}>{s.priority}</span>
@@ -114,7 +114,61 @@ export function SLATab({ rows, onRowClick }: { rows: CaseRow[]; onRowClick: (r: 
               </div>
               <span className="text-xs text-muted-foreground">SLA: {fmtDuration(s.sla)}</span>
             </div>
-            <div className="overflow-x-auto scrollbar-thin max-h-[320px]">
+
+            {/* Mobile: stacked cards */}
+            <div className="md:hidden divide-y divide-border/40 max-h-[480px] overflow-y-auto scrollbar-thin">
+              {s.rows.length === 0 && (
+                <div className="px-4 py-8 text-center text-muted-foreground text-sm">Nenhum caso nesta prioridade.</div>
+              )}
+              {s.rows.slice(0, 100).map((r) => {
+                const fr = r.first_response_minutes;
+                const inSla = fr != null && fr <= s.sla;
+                const team = r.analysis ? (normalizeResolverTeam(r.analysis.resolver_team) || lookupMember(r.analysis.resolver_name).area) : null;
+                const resolverName = r.analysis?.resolver_name ? lookupMember(r.analysis.resolver_name).name : "—";
+                return (
+                  <button
+                    key={r.id}
+                    onClick={() => onRowClick(r)}
+                    className="w-full text-left px-4 py-3 hover:bg-surface/40 transition-colors"
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <span className="font-mono text-[11px] text-muted-foreground">{r.idclinic || "—"}</span>
+                      {fr != null && (
+                        <span className={cn(
+                          "px-1.5 py-0.5 rounded text-[10px] font-semibold border",
+                          inSla
+                            ? "bg-[var(--brand-green)]/15 text-[var(--brand-green)] border-[var(--brand-green)]/40"
+                            : "bg-[var(--brand-red)]/15 text-[var(--brand-red)] border-[var(--brand-red)]/40"
+                        )}>
+                          {inSla ? "No prazo" : "Atrasado"}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-foreground line-clamp-2 leading-snug mb-2">{r.thread_title || "(sem título)"}</p>
+                    <div className="flex items-center justify-between gap-2 text-[11px]">
+                      <span>
+                        <span className="text-muted-foreground">1ª resp: </span>
+                        {fr == null ? (
+                          <span className="text-muted-foreground">—</span>
+                        ) : (
+                          <span className="font-semibold tabular-nums" style={{ color: inSla ? "var(--brand-green)" : "var(--brand-red)" }}>
+                            {fmtFirstResponse(fr)}
+                          </span>
+                        )}
+                      </span>
+                      {team ? (
+                        <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-medium border truncate max-w-[55%]", AREA_BADGE[team as Area])}>
+                          {resolverName}
+                        </span>
+                      ) : <span className="text-muted-foreground">{resolverName}</span>}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Desktop: table */}
+            <div className="hidden md:block overflow-x-auto scrollbar-thin max-h-[320px]">
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-card border-b border-border">
                   <tr className="text-left text-[11px] uppercase tracking-wider text-muted-foreground">
@@ -135,7 +189,7 @@ export function SLATab({ rows, onRowClick }: { rows: CaseRow[]; onRowClick: (r: 
                     const team = r.analysis ? (normalizeResolverTeam(r.analysis.resolver_team) || lookupMember(r.analysis.resolver_name).area) : null;
                     const resolverName = r.analysis?.resolver_name ? lookupMember(r.analysis.resolver_name).name : "—";
                     return (
-                      <tr key={r.id} onClick={() => onRowClick(r)} className="border-b border-border/30 hover:bg-surface/40 cursor-pointer">
+                      <tr key={r.id} onClick={() => onRowClick(r)} className="border-b border-border/30 hover:bg-surface/40 cursor-pointer transition-colors duration-150">
                         <td className="px-4 py-2 font-mono text-xs">{r.idclinic || "—"}</td>
                         <td className="px-4 py-2 max-w-[380px] truncate" title={r.thread_title || ""}>{r.thread_title || "(sem título)"}</td>
                         <td className="px-3 py-2 text-xs tabular-nums">

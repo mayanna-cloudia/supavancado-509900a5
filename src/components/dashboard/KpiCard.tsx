@@ -19,15 +19,15 @@ const ACCENT_CLASS: Record<NonNullable<Props["accent"]>, string> = {
 
 export function KpiCard({ label, value, hint, accent = "blue", icon }: Props) {
   return (
-    <div className="glass-card relative overflow-hidden p-5 fade-in">
+    <div className="glass-card hover-lift relative overflow-hidden p-4 sm:p-5 fade-in">
       <div className={cn("pointer-events-none absolute inset-0 bg-gradient-to-br opacity-60", ACCENT_CLASS[accent])} />
-      <div className="relative flex items-start justify-between gap-4">
-        <div>
-          <p className="text-xs uppercase tracking-wider text-muted-foreground">{label}</p>
-          <p className="mt-2 font-display text-3xl font-semibold text-foreground tabular-nums">
+      <div className="relative flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[10px] sm:text-xs uppercase tracking-wider text-muted-foreground">{label}</p>
+          <p className="mt-1.5 sm:mt-2 font-display text-2xl sm:text-3xl font-semibold text-foreground tabular-nums leading-none">
             {value}
           </p>
-          {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
+          {hint && <p className="mt-1.5 text-[11px] sm:text-xs text-muted-foreground truncate">{hint}</p>}
         </div>
         {icon && (
           <div className={cn("rounded-lg border border-border/60 bg-surface/60 p-2", ACCENT_CLASS[accent])}>

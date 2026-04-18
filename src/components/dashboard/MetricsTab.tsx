@@ -232,7 +232,39 @@ function WaitingSection({
         </div>
       ) : (
         <div className="overflow-x-auto scrollbar-thin max-h-[480px]">
-          <table className="w-full text-sm">
+          {/* Mobile cards */}
+          <div className="md:hidden divide-y divide-border/40">
+            {list.map(({ row: r, waitingMin, lastIso }) => {
+              const color = colorFor(waitingMin as number);
+              return (
+                <button
+                  key={r.id}
+                  onClick={() => onRowClick(r)}
+                  className="w-full text-left px-4 py-3 hover:bg-surface/40 transition-colors"
+                >
+                  <div className="flex items-start justify-between gap-2 mb-1">
+                    <span className="font-mono text-[11px] text-muted-foreground">{r.idclinic || "—"}</span>
+                    <span
+                      className="inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-semibold border tabular-nums shrink-0"
+                      style={{
+                        color,
+                        background: `color-mix(in oklab, ${color} 14%, transparent)`,
+                        borderColor: `color-mix(in oklab, ${color} 45%, transparent)`,
+                      }}
+                    >
+                      <span className="h-1.5 w-1.5 rounded-full pulse-dot" style={{ background: color }} />
+                      {fmtDuration(waitingMin as number)}
+                    </span>
+                  </div>
+                  <p className="text-sm text-foreground line-clamp-2 leading-snug">{r.thread_title || "(sem título)"}</p>
+                  <p className="text-[11px] text-muted-foreground tabular-nums mt-1">{fmtDate(lastIso)}</p>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Desktop table */}
+          <table className="hidden md:table w-full text-sm">
             <thead className="sticky top-0 bg-card border-b border-border">
               <tr className="text-left text-[11px] uppercase tracking-wider text-muted-foreground">
                 <th className="px-4 py-2 font-medium">IDCLINIC</th>
@@ -248,7 +280,7 @@ function WaitingSection({
                   <tr
                     key={r.id}
                     onClick={() => onRowClick(r)}
-                    className="border-b border-border/30 hover:bg-surface/40 cursor-pointer"
+                    className="border-b border-border/30 hover:bg-surface/40 cursor-pointer transition-colors duration-150"
                   >
                     <td className="px-4 py-2 font-mono text-xs text-foreground/90">{r.idclinic || "—"}</td>
                     <td className="px-4 py-2 max-w-[420px] truncate text-foreground/90" title={r.thread_title || ""}>

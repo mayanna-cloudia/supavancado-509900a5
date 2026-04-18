@@ -83,8 +83,8 @@ export function CaseDetailModal({
 
   return (
     <Dialog open={!!row} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto scrollbar-thin bg-card border-border p-0">
-        <DialogHeader className="sticky top-0 z-10 bg-card/95 backdrop-blur border-b border-border px-6 py-4">
+      <DialogContent className="max-w-3xl w-[calc(100vw-1rem)] sm:w-auto max-h-[92vh] overflow-y-auto scrollbar-thin bg-card border-border p-0">
+        <DialogHeader className="sticky top-0 z-10 bg-card/95 backdrop-blur border-b border-border px-4 sm:px-6 py-4">
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1 min-w-0">
               <div className="flex flex-wrap items-center gap-2 mb-2">
@@ -129,9 +129,9 @@ export function CaseDetailModal({
           </div>
         </DialogHeader>
 
-        <div className="px-6 py-5 space-y-5">
+        <div className="px-4 sm:px-6 py-5 space-y-5">
           {/* Metadata grid */}
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
             <MetaItem label="Data abertura" value={fmtDate(row.opened_at)} />
             <MetaItem label="Duração" value={fmtDuration(meta?.duration ?? null)} />
             <MetaItem label="Nº mensagens" value={String(meta?.count ?? 0)} />
