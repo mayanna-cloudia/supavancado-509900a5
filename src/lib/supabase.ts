@@ -56,6 +56,10 @@ export type Analysis = {
   resolver_team: string | null;
   analyzed_at: string;
   first_response_minutes?: number | null;
+  problem_fingerprint?: string | null;
+  first_responder_username?: string | null;
+  first_responder_name?: string | null;
+  first_responder_team?: string | null;
 };
 
 export type CaseRow = Case & {

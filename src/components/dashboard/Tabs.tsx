@@ -1,12 +1,13 @@
 import { cn } from "@/lib/utils";
 
-export type TabKey = "overview" | "cases" | "sla" | "team";
+export type TabKey = "overview" | "cases" | "sla" | "team" | "metrics";
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "overview", label: "Visão Geral" },
   { key: "cases",    label: "Casos em Tempo Real" },
   { key: "sla",      label: "SLA" },
   { key: "team",     label: "Time" },
+  { key: "metrics",  label: "Métricas" },
 ];
 
 export function Tabs({ value, onChange }: { value: TabKey; onChange: (k: TabKey) => void }) {
