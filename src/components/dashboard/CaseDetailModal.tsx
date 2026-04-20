@@ -205,7 +205,7 @@ export function CaseDetailModal({
               <Button
                 onClick={reanalyze}
                 disabled={busy}
-                className="bg-gradient-to-r from-[var(--brand-blue)] to-[var(--brand-purple)] text-background hover:opacity-90 border-0"
+                className="bg-[var(--brand-blue)] text-white hover:bg-[var(--brand-blue)]/90 border-0"
               >
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                 Reanalisar com IA

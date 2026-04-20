@@ -80,7 +80,7 @@ function Dashboard() {
       />
 
       <footer className="mx-auto max-w-[1600px] px-3 sm:px-6 py-6 text-center text-[11px] text-muted-foreground">
-        Cloudia · Painel interno · {rows.length.toLocaleString("pt-BR")} casos sincronizados
+        Cloudia · Suporte Avançado · {rows.length.toLocaleString("pt-BR")} casos sincronizados
       </footer>
     </div>
   );

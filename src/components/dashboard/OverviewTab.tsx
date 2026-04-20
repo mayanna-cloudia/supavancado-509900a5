@@ -8,14 +8,14 @@ import { fmtDuration, weekKey, weekLabel } from "@/lib/format";
 import { KpiCard } from "./KpiCard";
 import { lookupMember, normalizeResolverTeam, AREA_COLOR_HEX, AREA_LABEL, type Area } from "@/lib/team";
 
-const CHART_PALETTE = ["#38bdf8", "#10b981", "#f97316", "#8b5cf6", "#f59e0b", "#ef4444", "#06b6d4", "#a3e635"];
+const CHART_PALETTE = ["#256EFF", "#715AFF", "#10b981", "#f97316", "#f59e0b", "#ef4444", "#06b6d4", "#a3e635"];
 
 function ChartCard({ title, subtitle, children, height = 280 }: { title: string; subtitle?: string; children: React.ReactNode; height?: number }) {
   return (
-    <div className="glass-card p-5 fade-in">
+    <div className="flat-card flat-card-interactive fade-in" style={{ padding: "16px 18px" }}>
       <div className="mb-4">
-        <h3 className="font-display text-base font-semibold">{title}</h3>
-        {subtitle && <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>}
+        <h3 className="text-[13px] font-semibold text-foreground">{title}</h3>
+        {subtitle && <p className="text-[11px] text-muted-foreground mt-0.5">{subtitle}</p>}
       </div>
       <div style={{ height }}>{children}</div>
     </div>
@@ -24,14 +24,14 @@ function ChartCard({ title, subtitle, children, height = 280 }: { title: string;
 
 const tooltipStyle = {
   contentStyle: {
-    background: "#111820",
-    border: "1px solid #1a2233",
+    background: "#131929",
+    border: "1px solid #1f2940",
     borderRadius: 8,
-    color: "#dde3f0",
+    color: "#e6e9f2",
     fontSize: 12,
   },
-  labelStyle: { color: "#dde3f0", fontWeight: 600 },
-  itemStyle: { color: "#dde3f0" },
+  labelStyle: { color: "#e6e9f2", fontWeight: 600 },
+  itemStyle: { color: "#e6e9f2" },
 };
 
 export function OverviewTab({ rows }: { rows: CaseRow[] }) {
@@ -133,22 +133,23 @@ export function OverviewTab({ rows }: { rows: CaseRow[] }) {
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={weekly} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
                 <defs>
-                  <linearGradient id="weekLine" x1="0" y1="0" x2="1" y2="0">
-                    <stop offset="0%" stopColor="#38bdf8" />
-                    <stop offset="100%" stopColor="#8b5cf6" />
+                  <linearGradient id="weekArea" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#256EFF" stopOpacity={0.25} />
+                    <stop offset="100%" stopColor="#256EFF" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid stroke="#1a2233" strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="week" stroke="#4e607a" fontSize={11} />
-                <YAxis stroke="#4e607a" fontSize={11} allowDecimals={false} />
+                <CartesianGrid stroke="#1f2940" strokeWidth={0.5} strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="week" stroke="#4a5870" fontSize={11} tickLine={false} axisLine={{ stroke: "#1f2940" }} />
+                <YAxis stroke="#4a5870" fontSize={11} allowDecimals={false} tickLine={false} axisLine={{ stroke: "#1f2940" }} />
                 <Tooltip {...tooltipStyle} />
                 <Line
                   type="monotone"
                   dataKey="count"
-                  stroke="url(#weekLine)"
-                  strokeWidth={2.5}
-                  dot={{ fill: "#38bdf8", r: 3 }}
-                  activeDot={{ r: 6, fill: "#38bdf8" }}
+                  stroke="#256EFF"
+                  strokeWidth={2}
+                  fill="url(#weekArea)"
+                  dot={{ fill: "#256EFF", r: 3, strokeWidth: 0 }}
+                  activeDot={{ r: 5, fill: "#256EFF", strokeWidth: 0 }}
                 />
               </LineChart>
             </ResponsiveContainer>
@@ -162,7 +163,7 @@ export function OverviewTab({ rows }: { rows: CaseRow[] }) {
                 {byCategory.map((_, i) => <Cell key={i} fill={CHART_PALETTE[i % CHART_PALETTE.length]} />)}
               </Pie>
               <Tooltip {...tooltipStyle} />
-              <Legend wrapperStyle={{ fontSize: 11, color: "#dde3f0" }} />
+              <Legend wrapperStyle={{ fontSize: 11, color: "#e6e9f2" }} />
             </PieChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -187,13 +188,13 @@ export function OverviewTab({ rows }: { rows: CaseRow[] }) {
                 {byResolverArea.map((p, i) => <Cell key={i} fill={p.color} />)}
               </Pie>
               <Tooltip {...tooltipStyle} />
-              <Legend wrapperStyle={{ fontSize: 11, color: "#dde3f0" }} />
+              <Legend wrapperStyle={{ fontSize: 11, color: "#e6e9f2" }} />
             </PieChart>
           </ResponsiveContainer>
         </ChartCard>
 
-        <div className="glass-card p-5 fade-in">
-          <h3 className="font-display text-base font-semibold mb-4">Resumo resolutivo</h3>
+        <div className="flat-card flat-card-interactive fade-in" style={{ padding: "16px 18px" }}>
+          <h3 className="text-[13px] font-semibold mb-4">Resumo resolutivo</h3>
           <div className="space-y-3">
             {byResolverArea.map((a) => {
               const totalRes = byResolverArea.reduce((s, x) => s + x.value, 0);
@@ -204,7 +205,7 @@ export function OverviewTab({ rows }: { rows: CaseRow[] }) {
                     <span className="text-foreground/90">{a.name}</span>
                     <span className="text-muted-foreground tabular-nums">{a.value} <span className="opacity-60">({pct.toFixed(0)}%)</span></span>
                   </div>
-                  <div className="h-2 rounded-full bg-surface overflow-hidden">
+                  <div className="h-1.5 rounded-full bg-surface overflow-hidden">
                     <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: a.color }} />
                   </div>
                 </div>
@@ -218,11 +219,11 @@ export function OverviewTab({ rows }: { rows: CaseRow[] }) {
         <ChartCard title="Top 10 clientes (IDCLINIC)" subtitle="Maior volume de casos" height={360}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={topClinics} layout="vertical" margin={{ top: 8, right: 16, left: 8, bottom: 0 }}>
-              <CartesianGrid stroke="#1a2233" strokeDasharray="3 3" horizontal={false} />
-              <XAxis type="number" stroke="#4e607a" fontSize={11} allowDecimals={false} />
-              <YAxis dataKey="name" type="category" stroke="#4e607a" fontSize={11} width={90} />
-              <Tooltip {...tooltipStyle} />
-              <Bar dataKey="value" fill="#38bdf8" radius={[0, 6, 6, 0]} />
+              <CartesianGrid stroke="#1f2940" strokeWidth={0.5} strokeDasharray="3 3" horizontal={false} />
+              <XAxis type="number" stroke="#4a5870" fontSize={11} allowDecimals={false} tickLine={false} axisLine={{ stroke: "#1f2940" }} />
+              <YAxis dataKey="name" type="category" stroke="#4a5870" fontSize={11} width={90} tickLine={false} axisLine={{ stroke: "#1f2940" }} />
+              <Tooltip {...tooltipStyle} cursor={{ fill: "rgba(37,110,255,0.08)" }} />
+              <Bar dataKey="value" fill="#256EFF" radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -230,11 +231,11 @@ export function OverviewTab({ rows }: { rows: CaseRow[] }) {
         <ChartCard title="Top módulos / subcategorias" height={360}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={topModules} layout="vertical" margin={{ top: 8, right: 16, left: 8, bottom: 0 }}>
-              <CartesianGrid stroke="#1a2233" strokeDasharray="3 3" horizontal={false} />
-              <XAxis type="number" stroke="#4e607a" fontSize={11} allowDecimals={false} />
-              <YAxis dataKey="name" type="category" stroke="#4e607a" fontSize={11} width={140} />
-              <Tooltip {...tooltipStyle} />
-              <Bar dataKey="value" fill="#8b5cf6" radius={[0, 6, 6, 0]} />
+              <CartesianGrid stroke="#1f2940" strokeWidth={0.5} strokeDasharray="3 3" horizontal={false} />
+              <XAxis type="number" stroke="#4a5870" fontSize={11} allowDecimals={false} tickLine={false} axisLine={{ stroke: "#1f2940" }} />
+              <YAxis dataKey="name" type="category" stroke="#4a5870" fontSize={11} width={140} tickLine={false} axisLine={{ stroke: "#1f2940" }} />
+              <Tooltip {...tooltipStyle} cursor={{ fill: "rgba(113,90,255,0.08)" }} />
+              <Bar dataKey="value" fill="#715AFF" radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
