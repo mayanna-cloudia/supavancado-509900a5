@@ -8,6 +8,7 @@ import { CaseDetailModal } from "@/components/dashboard/CaseDetailModal";
 import { SLATab } from "@/components/dashboard/SLATab";
 import { TeamTab } from "@/components/dashboard/TeamTab";
 import { MetricsTab } from "@/components/dashboard/MetricsTab";
+import { ExportButton } from "@/components/dashboard/ExportButton";
 import { useCloudiaData } from "@/lib/useCloudiaData";
 import type { CaseRow } from "@/lib/supabase";
 import { Loader2 } from "lucide-react";
@@ -53,17 +54,20 @@ function Dashboard() {
             {tab === "cases" && (
               <div className="space-y-4">
                 <FiltersBar rows={rows} filters={filters} onChange={setFilters} />
-                <div className="flex items-center justify-between text-[11px] sm:text-xs text-muted-foreground px-1">
+                <div className="flex items-center justify-between gap-3 text-[11px] sm:text-xs text-muted-foreground px-1">
                   <span>
                     {filtered.length.toLocaleString("pt-BR")} de {rows.length.toLocaleString("pt-BR")} casos
                   </span>
-                  <span className="hidden sm:inline">Atualização automática via Realtime</span>
+                  <div className="flex items-center gap-3">
+                    <span className="hidden sm:inline">Atualização automática via Realtime</span>
+                    <ExportButton rows={filtered} scope="casos" messagesMap={messages} />
+                  </div>
                 </div>
                 <CasesTable rows={filtered} onRowClick={setSelected} />
               </div>
             )}
 
-            {tab === "sla" && <SLATab rows={rows} onRowClick={setSelected} />}
+            {tab === "sla" && <SLATab rows={rows} onRowClick={setSelected} messagesMap={messages} />}
 
             {tab === "team" && <TeamTab rows={rows} messagesMap={messages} />}
 
