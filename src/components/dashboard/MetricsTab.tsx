@@ -4,6 +4,7 @@ import type { CaseRow, Message } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import { fmtDuration, fmtDate } from "@/lib/format";
 import { lookupMember, normalizeResolverTeam, AREA_BADGE, type Area } from "@/lib/team";
+import { ExportButton } from "@/components/dashboard/ExportButton";
 
 function isOpen(r: CaseRow): boolean {
   const s = (r.status || "").toLowerCase();
@@ -425,6 +426,12 @@ export function MetricsTab({
 
   return (
     <div className="space-y-6">
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-xs text-muted-foreground">
+          {rows.length.toLocaleString("pt-BR")} casos analisados
+        </div>
+        <ExportButton rows={rows} scope="metricas" messagesMap={messagesMap} />
+      </div>
       <RecurrenceSection rows={rows} onRowClick={onRowClick} />
       <WaitingSection rows={rows} messagesMap={messagesMap} onRowClick={onRowClick} />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
