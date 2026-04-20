@@ -46,7 +46,9 @@ function Dashboard() {
           </div>
         ) : (
           <div key={tab} className="tab-enter">
-            {tab === "overview" && <OverviewTab rows={rows} />}
+            {tab === "overview" && (
+              <OverviewTab rows={rows} messagesMap={messages} onRowClick={setSelected} />
+            )}
 
             {tab === "cases" && (
               <div className="space-y-4">
