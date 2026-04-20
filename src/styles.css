@@ -48,62 +48,61 @@
 
 @layer base {
   :root {
-    --radius: 0.75rem;
+    --radius: 0.625rem;
 
-    /* Elevation system — subtle depth on a dark surface */
-    --shadow-xs: 0 1px 2px 0 oklch(0 0 0 / 0.20);
-    --shadow-sm: 0 2px 6px -1px oklch(0 0 0 / 0.28), 0 1px 2px -1px oklch(0 0 0 / 0.22);
-    --shadow-md: 0 8px 22px -8px oklch(0 0 0 / 0.40), 0 2px 6px -2px oklch(0 0 0 / 0.30);
-    --shadow-lg: 0 18px 40px -16px oklch(0 0 0 / 0.55), 0 6px 12px -4px oklch(0 0 0 / 0.30);
-    --shadow-glow-blue: 0 8px 30px -8px color-mix(in oklab, var(--brand-blue) 35%, transparent);
+    /* Subtle elevation */
+    --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.25);
+    --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.30);
+    --shadow-md: 0 4px 16px -4px rgba(0, 0, 0, 0.40);
+    --shadow-lg: 0 12px 32px -8px rgba(0, 0, 0, 0.50);
 
-    /* Easing curves */
+    /* Easing */
     --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
     --ease-out-smooth: cubic-bezier(0.16, 1, 0.3, 1);
 
-    /* Cloudia palette - dark by default */
-    --background: oklch(0.13 0.02 265);          /* #07080d */
-    --surface:    oklch(0.17 0.02 265);          /* #0d1018 */
-    --foreground: oklch(0.92 0.02 260);          /* #dde3f0 */
+    /* Cloudia palette — flat, professional dark */
+    --background: #0a0e1a;
+    --surface:    #0f1422;
+    --foreground: #e6e9f2;
 
-    --card:       oklch(0.20 0.02 260);          /* #111820 */
-    --card-foreground: oklch(0.92 0.02 260);
+    --card:       #131929;
+    --card-foreground: #e6e9f2;
 
-    --popover:    oklch(0.20 0.02 260);
-    --popover-foreground: oklch(0.92 0.02 260);
+    --popover:    #131929;
+    --popover-foreground: #e6e9f2;
 
-    --primary:    oklch(0.78 0.14 230);          /* #38bdf8 - sky */
-    --primary-foreground: oklch(0.15 0.02 260);
+    --primary:    #256EFF;
+    --primary-foreground: #ffffff;
 
-    --secondary:  oklch(0.27 0.02 260);
-    --secondary-foreground: oklch(0.92 0.02 260);
+    --secondary:  #1a2236;
+    --secondary-foreground: #e6e9f2;
 
-    --muted:      oklch(0.27 0.02 260);
-    --muted-foreground: oklch(0.55 0.03 260);    /* #4e607a-ish */
+    --muted:      #1a2236;
+    --muted-foreground: #6b7a99;
 
-    --accent:     oklch(0.30 0.04 240);
-    --accent-foreground: oklch(0.92 0.02 260);
+    --accent:     #113173;
+    --accent-foreground: #e6e9f2;
 
-    --destructive: oklch(0.65 0.22 25);          /* #ef4444 */
-    --destructive-foreground: oklch(0.98 0.01 0);
+    --destructive: #ef4444;
+    --destructive-foreground: #ffffff;
 
-    --border:     oklch(0.30 0.02 260);          /* #1a2233 */
-    --input:      oklch(0.30 0.02 260);
-    --ring:       oklch(0.78 0.14 230);
+    --border:     #1f2940;
+    --input:      #1f2940;
+    --ring:       #256EFF;
 
-    --brand-blue:   oklch(0.78 0.14 230);  /* #38bdf8 */
-    --brand-green:  oklch(0.72 0.17 162);  /* #10b981 */
-    --brand-orange: oklch(0.74 0.18 47);   /* #f97316 */
-    --brand-purple: oklch(0.65 0.22 295);  /* #8b5cf6 */
-    --brand-red:    oklch(0.65 0.22 25);   /* #ef4444 */
-    --brand-yellow: oklch(0.80 0.16 80);   /* #f59e0b */
+    --brand-blue:   #256EFF;
+    --brand-purple: #715AFF;
+    --brand-green:  #10b981;
+    --brand-orange: #f97316;
+    --brand-red:    #ef4444;
+    --brand-yellow: #f59e0b;
 
-    --chart-1: var(--brand-blue);
-    --chart-2: var(--brand-green);
-    --chart-3: var(--brand-orange);
-    --chart-4: var(--brand-purple);
-    --chart-5: var(--brand-yellow);
-    --chart-6: var(--brand-red);
+    --chart-1: #256EFF;
+    --chart-2: #715AFF;
+    --chart-3: #10b981;
+    --chart-4: #f97316;
+    --chart-5: #f59e0b;
+    --chart-6: #ef4444;
   }
 
   * {
@@ -118,12 +117,14 @@
     text-rendering: optimizeLegibility;
   }
 
-  h1 { font-family: var(--font-display); letter-spacing: -0.035em; line-height: 1.05; font-weight: 600; }
-  h2 { font-family: var(--font-display); letter-spacing: -0.03em;  line-height: 1.1;  font-weight: 600; }
-  h3 { font-family: var(--font-display); letter-spacing: -0.025em; line-height: 1.15; font-weight: 600; }
-  h4 { font-family: var(--font-display); letter-spacing: -0.02em;  line-height: 1.2;  font-weight: 600; }
+  /* Tabular numbers everywhere by default */
+  .tabular-nums { font-variant-numeric: tabular-nums; }
 
-  /* Smoother scroll feel on iOS/Safari */
+  h1 { font-family: var(--font-display); letter-spacing: -0.03em;  line-height: 1.1;  font-weight: 600; }
+  h2 { font-family: var(--font-display); letter-spacing: -0.025em; line-height: 1.15; font-weight: 600; }
+  h3 { font-family: var(--font-display); letter-spacing: -0.02em;  line-height: 1.2;  font-weight: 600; }
+  h4 { font-family: var(--font-display); letter-spacing: -0.015em; line-height: 1.25; font-weight: 600; }
+
   html { -webkit-text-size-adjust: 100%; }
 }
 
@@ -131,66 +132,64 @@
   .bg-surface { background-color: var(--color-surface); }
   .bg-app     { background-color: var(--color-background); }
 
-  .glass-card {
-    background: linear-gradient(135deg, color-mix(in oklab, var(--card) 95%, transparent), color-mix(in oklab, var(--surface) 90%, transparent));
+  /* Flat card — solid bg, subtle border, hover lift */
+  .flat-card {
+    background-color: var(--card);
     border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-sm);
+    border-radius: 10px;
     transition:
-      transform 0.35s var(--ease-out-soft),
-      box-shadow 0.35s var(--ease-out-soft),
-      border-color 0.25s var(--ease-out-soft);
+      transform 0.2s var(--ease-out-soft),
+      border-color 0.2s var(--ease-out-soft),
+      box-shadow 0.2s var(--ease-out-soft);
   }
-  .glass-card:hover {
+  .flat-card-interactive:hover {
+    transform: translateY(-2px);
+    border-color: color-mix(in oklab, var(--primary) 50%, var(--border));
     box-shadow: var(--shadow-md);
-    border-color: color-mix(in oklab, var(--border) 70%, var(--primary) 30%);
   }
-  .glass-card-static { box-shadow: var(--shadow-sm); }
-  .glass-card-static:hover { box-shadow: var(--shadow-sm); border-color: var(--border); }
 
-  /* Hover lift used on interactive cards/buttons */
-  .hover-lift { transition: transform 0.25s var(--ease-out-soft), box-shadow 0.25s var(--ease-out-soft); }
-  .hover-lift:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+  /* Backwards-compat aliases (existing components use these) */
+  .glass-card        { background-color: var(--card); border: 1px solid var(--border); border-radius: 10px; transition: transform 0.2s var(--ease-out-soft), border-color 0.2s var(--ease-out-soft), box-shadow 0.2s var(--ease-out-soft); }
+  .glass-card:hover  { border-color: color-mix(in oklab, var(--primary) 35%, var(--border)); box-shadow: var(--shadow-sm); }
+  .glass-card-static { background-color: var(--card); border: 1px solid var(--border); border-radius: 10px; }
+  .glass-card-static:hover { box-shadow: none; border-color: var(--border); }
+
+  .hover-lift { transition: transform 0.2s var(--ease-out-soft), box-shadow 0.2s var(--ease-out-soft), border-color 0.2s var(--ease-out-soft); }
+  .hover-lift:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); border-color: color-mix(in oklab, var(--primary) 40%, var(--border)); }
 
   /* Tab content swap */
-  .tab-enter { animation: tab-enter 0.32s var(--ease-out-smooth) both; }
+  .tab-enter { animation: tab-enter 0.28s var(--ease-out-smooth) both; }
   @keyframes tab-enter {
-    from { opacity: 0; transform: translateY(6px); }
+    from { opacity: 0; transform: translateY(4px); }
     to   { opacity: 1; transform: translateY(0); }
   }
 
-  /* Hide scrollbars on horizontally scrolling tab strips */
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
   .no-scrollbar::-webkit-scrollbar { display: none; }
 
-  .pulse-dot {
-    position: relative;
-  }
+  .pulse-dot { position: relative; }
   .pulse-dot::after {
     content: "";
     position: absolute;
     inset: 0;
     border-radius: 9999px;
     background: var(--brand-green);
-    opacity: 0.6;
+    opacity: 0.55;
     animation: pulse-ring 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
   @keyframes pulse-ring {
-    0%   { transform: scale(1);   opacity: 0.6; }
-    80%  { transform: scale(2.4); opacity: 0;   }
-    100% { transform: scale(2.4); opacity: 0;   }
+    0%   { transform: scale(1);   opacity: 0.55; }
+    80%  { transform: scale(2.4); opacity: 0;    }
+    100% { transform: scale(2.4); opacity: 0;    }
   }
 
   .scrollbar-thin::-webkit-scrollbar { width: 8px; height: 8px; }
-  .scrollbar-thin::-webkit-scrollbar-thumb {
-    background: var(--border);
-    border-radius: 8px;
-  }
+  .scrollbar-thin::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; }
   .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: var(--muted-foreground); }
 
-  .fade-in { animation: fade-in 0.4s ease-out both; }
+  .fade-in { animation: fade-in 0.35s ease-out both; }
   @keyframes fade-in {
-    from { opacity: 0; transform: translateY(4px); }
+    from { opacity: 0; transform: translateY(3px); }
     to   { opacity: 1; transform: translateY(0); }
   }
 }

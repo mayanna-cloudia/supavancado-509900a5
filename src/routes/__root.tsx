@@ -36,9 +36,7 @@ export const Route = createRootRoute({
       { property: "og:type", content: "website" },
       { name: "twitter:title", content: "Cloudia · Suporte Avançado" },
       { name: "twitter:description", content: "Dashboard de suporte técnico Cloudia em tempo real" },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/3906f868-4c0e-45a6-a78f-efc6d9f67015/id-preview-f4a2e4b0--c4cb1c59-76a5-4aab-8379-77486962938a.lovable.app-1776455301686.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/3906f868-4c0e-45a6-a78f-efc6d9f67015/id-preview-f4a2e4b0--c4cb1c59-76a5-4aab-8379-77486962938a.lovable.app-1776455301686.png" },
-      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:card", content: "summary" },
     ],
     links: [
       { rel: "preconnect", href: "https://fonts.googleapis.com" },

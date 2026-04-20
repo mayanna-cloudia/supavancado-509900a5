@@ -1,36 +1,64 @@
 import { cn } from "@/lib/utils";
 
+type Accent = "blue" | "green" | "orange" | "purple" | "yellow" | "red";
+
 type Props = {
   label: string;
   value: string | number;
   hint?: string;
-  accent?: "blue" | "green" | "orange" | "purple" | "yellow" | "red";
+  accent?: Accent;
   icon?: React.ReactNode;
 };
 
-const ACCENT_CLASS: Record<NonNullable<Props["accent"]>, string> = {
-  blue:   "from-[oklch(0.78_0.14_230/0.18)] to-transparent text-[var(--brand-blue)]",
-  green:  "from-[oklch(0.72_0.17_162/0.18)] to-transparent text-[var(--brand-green)]",
-  orange: "from-[oklch(0.74_0.18_47/0.18)]  to-transparent text-[var(--brand-orange)]",
-  purple: "from-[oklch(0.65_0.22_295/0.18)] to-transparent text-[var(--brand-purple)]",
-  yellow: "from-[oklch(0.80_0.16_80/0.18)]  to-transparent text-[var(--brand-yellow)]",
-  red:    "from-[oklch(0.65_0.22_25/0.18)]  to-transparent text-[var(--brand-red)]",
+const ACCENT_VAR: Record<Accent, string> = {
+  blue:   "var(--brand-blue)",
+  green:  "var(--brand-green)",
+  orange: "var(--brand-orange)",
+  purple: "var(--brand-purple)",
+  yellow: "var(--brand-yellow)",
+  red:    "var(--brand-red)",
 };
 
 export function KpiCard({ label, value, hint, accent = "blue", icon }: Props) {
+  const color = ACCENT_VAR[accent];
   return (
-    <div className="glass-card hover-lift relative overflow-hidden p-4 sm:p-5 fade-in">
-      <div className={cn("pointer-events-none absolute inset-0 bg-gradient-to-br opacity-60", ACCENT_CLASS[accent])} />
-      <div className="relative flex items-start justify-between gap-3">
+    <div
+      className="relative overflow-hidden flat-card flat-card-interactive fade-in"
+      style={{ padding: "16px 18px", paddingLeft: 21 }}
+    >
+      {/* Vertical accent bar */}
+      <span
+        aria-hidden
+        className="absolute left-0 top-0 bottom-0"
+        style={{ width: 3, background: color }}
+      />
+
+      <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[10px] sm:text-xs uppercase tracking-wider text-muted-foreground">{label}</p>
-          <p className="mt-1.5 sm:mt-2 font-display text-2xl sm:text-3xl font-semibold text-foreground tabular-nums leading-none">
+          <p
+            className="text-[10px] font-medium text-muted-foreground"
+            style={{ letterSpacing: "0.1em", textTransform: "uppercase" }}
+          >
+            {label}
+          </p>
+          <p
+            className="mt-2 font-display font-bold tabular-nums leading-none truncate"
+            style={{ fontSize: 32, color }}
+          >
             {value}
           </p>
-          {hint && <p className="mt-1.5 text-[11px] sm:text-xs text-muted-foreground truncate">{hint}</p>}
+          {hint && (
+            <p className="mt-2 text-[11px] text-muted-foreground truncate">{hint}</p>
+          )}
         </div>
         {icon && (
-          <div className={cn("rounded-lg border border-border/60 bg-surface/60 p-2", ACCENT_CLASS[accent])}>
+          <div
+            className={cn("rounded-md p-2 shrink-0")}
+            style={{
+              background: `color-mix(in oklab, ${color} 12%, transparent)`,
+              color,
+            }}
+          >
             {icon}
           </div>
         )}
