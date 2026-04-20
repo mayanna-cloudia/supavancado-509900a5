@@ -5,7 +5,7 @@ import { lookupMember, AREA_LABEL, AREA_COLOR_HEX, ALL_AREAS, type Area } from "
 import { cn } from "@/lib/utils";
 
 const tooltipStyle = {
-  contentStyle: { background: "#111820", border: "1px solid #1a2233", borderRadius: 8, color: "#dde3f0", fontSize: 12 },
+  contentStyle: { background: "#131929", border: "1px solid #1f2940", borderRadius: 8, color: "#e6e9f2", fontSize: 12 },
 };
 
 function aggregateByArea(items: { username: string }[]) {
@@ -58,7 +58,7 @@ function Section({
                   {pieData.map((d, i) => <Cell key={i} fill={d.color} />)}
                 </Pie>
                 <Tooltip {...tooltipStyle} />
-                <Legend wrapperStyle={{ fontSize: 11, color: "#dde3f0" }} />
+                <Legend wrapperStyle={{ fontSize: 11, color: "#e6e9f2" }} />
               </PieChart>
             </ResponsiveContainer>
           )}
