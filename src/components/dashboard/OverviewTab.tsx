@@ -3,9 +3,10 @@ import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid,
   PieChart, Pie, Cell, BarChart, Bar, Legend,
 } from "recharts";
-import type { CaseRow } from "@/lib/supabase";
+import type { CaseRow, Message } from "@/lib/supabase";
 import { fmtDuration, weekKey, weekLabel } from "@/lib/format";
 import { KpiCard } from "./KpiCard";
+import { WaitingAlertBanner } from "./WaitingAlertBanner";
 import { lookupMember, normalizeResolverTeam, AREA_COLOR_HEX, AREA_LABEL, type Area } from "@/lib/team";
 
 const CHART_PALETTE = ["#256EFF", "#715AFF", "#10b981", "#f97316", "#f59e0b", "#ef4444", "#06b6d4", "#a3e635"];
@@ -34,7 +35,15 @@ const tooltipStyle = {
   itemStyle: { color: "#e6e9f2" },
 };
 
-export function OverviewTab({ rows }: { rows: CaseRow[] }) {
+export function OverviewTab({
+  rows,
+  messagesMap = {},
+  onRowClick,
+}: {
+  rows: CaseRow[];
+  messagesMap?: Record<number, Message[]>;
+  onRowClick?: (row: CaseRow) => void;
+}) {
   const stats = useMemo(() => {
     const total = rows.length;
     const resolved = rows.filter((r) => r.analysis?.resolved).length;
@@ -120,6 +129,8 @@ export function OverviewTab({ rows }: { rows: CaseRow[] }) {
 
   return (
     <div className="space-y-6">
+      <WaitingAlertBanner rows={rows} messagesMap={messagesMap} onRowClick={onRowClick} />
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard label="Total de casos" value={stats.total.toLocaleString("pt-BR")} accent="blue" />
         <KpiCard label="Resolvidos" value={stats.resolved.toLocaleString("pt-BR")} hint={stats.total ? `${Math.round((stats.resolved / stats.total) * 100)}% do total` : undefined} accent="green" />
