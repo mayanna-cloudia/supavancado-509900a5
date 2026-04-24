@@ -86,12 +86,13 @@ function activeFilterCount(f: Filters): number {
 }
 
 function FiltersBody({
-  rows, filters, update, clear,
+  rows, filters, update, clear, activeCount,
 }: {
   rows: CaseRow[];
   filters: Filters;
   update: (p: Partial<Filters>) => void;
   clear: () => void;
+  activeCount: number;
 }) {
   const clinics = useMemo(() => {
     const set = new Set<string>();
