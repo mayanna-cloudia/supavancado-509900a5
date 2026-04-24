@@ -143,7 +143,106 @@ function timestampSuffix(): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}-${p(d.getMinutes())}`;
 }
 
-export type ExportScope = "casos" | "sla" | "metricas";
+export type ExportScope = "casos" | "sla" | "metricas" | "visaogeral";
+
+function downloadCsv(content: string, filename: string): void {
+  const blob = new Blob(["\uFEFF" + content], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// ---- Overview consolidated export ----
+export function exportOverviewCSV(
+  rows: CaseRow[],
+  rangeLabel: string,
+  opts: CSVOptions = {},
+): void {
+  if (!rows || rows.length === 0) {
+    toast("Nenhum dado para exportar no período selecionado", {
+      style: {
+        background: "var(--card)",
+        border: "1px solid color-mix(in oklab, var(--brand-orange) 50%, transparent)",
+        color: "var(--brand-orange)",
+      },
+    });
+    return;
+  }
+
+  // --- Metrics header ---
+  const total = rows.length;
+  const resolved = rows.filter((r) => r.analysis?.resolved).length;
+  const open = total - resolved;
+  const durations = rows
+    .map((r) => (r.closed_at ? (new Date(r.closed_at).getTime() - new Date(r.opened_at).getTime()) / 60000 : null))
+    .filter((x): x is number => x != null && x > 0);
+  const avg = durations.length ? durations.reduce((a, b) => a + b, 0) / durations.length : 0;
+
+  const lines: string[] = [];
+  lines.push(esc("Cloudia · Suporte Avançado — Visão Geral"));
+  lines.push(`${esc("Período")},${esc(rangeLabel)}`);
+  lines.push(`${esc("Gerado em")},${esc(fmtDateBR(new Date().toISOString()))}`);
+  lines.push("");
+  lines.push(esc("RESUMO"));
+  lines.push(`${esc("Total de casos")},${esc(String(total))}`);
+  lines.push(`${esc("Resolvidos")},${esc(String(resolved))}`);
+  lines.push(`${esc("Em aberto")},${esc(String(open))}`);
+  lines.push(`${esc("Duração média (min)")},${esc(avg ? avg.toFixed(0) : "0")}`);
+  lines.push("");
+
+  // --- Group by category ---
+  const groupCount = (selector: (r: CaseRow) => string) => {
+    const map = new Map<string, number>();
+    for (const r of rows) {
+      const k = selector(r) || "—";
+      map.set(k, (map.get(k) || 0) + 1);
+    }
+    return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
+  };
+
+  const writeGroup = (title: string, header: string, data: [string, number][]) => {
+    lines.push(esc(title));
+    lines.push(`${esc(header)},${esc("Casos")}`);
+    for (const [k, v] of data) lines.push(`${esc(k)},${esc(String(v))}`);
+    lines.push("");
+  };
+
+  writeGroup("POR CATEGORIA", "Categoria", groupCount((r) => r.analysis?.category || "Sem categoria"));
+  writeGroup("POR PRIORIDADE", "Prioridade", groupCount((r) => getPriority(r) || "—"));
+  writeGroup("POR ÁREA RESOLVEDORA", "Área", groupCount((r) => {
+    if (!r.analysis) return "Não atribuído";
+    const team = normalizeResolverTeam(r.analysis.resolver_team) || lookupMember(r.analysis.resolver_name).area;
+    return team ? AREA_LABEL[team as Area] : "Não atribuído";
+  }));
+
+  // --- Detailed cases ---
+  lines.push(esc("CASOS DETALHADOS"));
+  lines.push(COLUMNS.map(esc).join(","));
+  for (const r of rows) {
+    const cells = rowToCells(r);
+    if (opts.openerByCaseId) {
+      const opener = opts.openerByCaseId[r.id];
+      cells[12] = opener ? esc(lookupMember(opener).name) : "";
+    }
+    lines.push(cells.join(","));
+  }
+
+  downloadCsv(lines.join("\r\n"), `cloudia-suporte-visaogeral-${timestampSuffix()}.csv`);
+  toast.success(`Visão geral exportada (${total.toLocaleString("pt-BR")} casos)`, {
+    duration: 3000,
+    style: {
+      background: "var(--card)",
+      border: "1px solid color-mix(in oklab, var(--brand-green) 50%, transparent)",
+      color: "var(--foreground)",
+    },
+  });
+}
+
 
 export function exportCasesCSV(
   rows: CaseRow[],
