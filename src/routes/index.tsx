@@ -9,6 +9,7 @@ import { SLATab } from "@/components/dashboard/SLATab";
 import { TeamTab } from "@/components/dashboard/TeamTab";
 import { MetricsTab } from "@/components/dashboard/MetricsTab";
 import { ExportButton } from "@/components/dashboard/ExportButton";
+import { AnalyzePendingButton } from "@/components/dashboard/AnalyzePendingButton";
 import { useCloudiaData } from "@/lib/useCloudiaData";
 import type { CaseRow } from "@/lib/supabase";
 import { Loader2 } from "lucide-react";
@@ -30,7 +31,11 @@ function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <Header live={live} lastEvent={lastEvent} />
+      <Header
+        live={live}
+        lastEvent={lastEvent}
+        actions={<AnalyzePendingButton rows={rows} onDone={refresh} />}
+      />
       <Tabs value={tab} onChange={setTab} />
 
       <main className="mx-auto max-w-[1600px] px-3 sm:px-6 py-4 sm:py-6">
