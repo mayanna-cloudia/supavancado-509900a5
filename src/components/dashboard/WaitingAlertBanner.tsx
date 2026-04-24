@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
 import type { CaseRow, Message } from "@/lib/supabase";
+import { getPriority } from "@/lib/format";
 
 function getLastActivity(row: CaseRow, messages?: Message[]): string | null {
   if (row.last_activity_at) return row.last_activity_at;
@@ -152,7 +153,7 @@ export function WaitingAlertBanner({ rows, messagesMap, onRowClick }: Props) {
             >
               {fmtWaiting(minutes)}
             </span>
-            <span className="shrink-0">{priorityBadge(row.analysis?.priority)}</span>
+            <span className="shrink-0">{priorityBadge(getPriority(row))}</span>
           </button>
         ))}
       </div>
