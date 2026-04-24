@@ -2,7 +2,7 @@ import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import type { CaseRow } from "./supabase";
-import { isWithinSLA, SLA_MINUTES } from "./format";
+import { isWithinSLA, SLA_MINUTES, getPriority } from "./format";
 import { lookupMember, normalizeResolverTeam, AREA_LABEL, type Area } from "./team";
 
 // ----- Brazilian number formatters -----
@@ -49,7 +49,7 @@ function discordUrl(r: CaseRow): string {
 
 function slaLabel(r: CaseRow): string {
   const fr = r.first_response_minutes ?? null;
-  const p = (r.analysis?.priority || "").toUpperCase();
+  const p = getPriority(r) || "";
   if (fr == null || !SLA_MINUTES[p]) return "Não aplicável";
   return isWithinSLA(fr, p) ? "Sim" : "Não";
 }
@@ -94,7 +94,7 @@ function rowToCells(r: CaseRow): string[] {
   return [
     r.idclinic || "",
     r.thread_title || "",
-    (a?.priority || "").toUpperCase(),
+    getPriority(r) || "",
     a?.category || "",
     a?.subcategory || "",
     resolved ? "Resolvido" : "Aberto",
