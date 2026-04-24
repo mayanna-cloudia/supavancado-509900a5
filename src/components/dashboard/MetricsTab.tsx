@@ -5,11 +5,18 @@ import { cn } from "@/lib/utils";
 import { fmtDuration, fmtDate } from "@/lib/format";
 import { lookupMember, normalizeResolverTeam, AREA_BADGE, type Area } from "@/lib/team";
 import { ExportButton } from "@/components/dashboard/ExportButton";
+import {
+  OverviewDateFilter,
+  rangeForPreset,
+  filterByDateRange,
+  DEFAULT_PRESET,
+  type DateRange,
+  type PresetKey,
+} from "@/components/dashboard/OverviewDateFilter";
 
 function isOpen(r: CaseRow): boolean {
   const s = (r.status || "").toLowerCase();
   if (s === "aberto") return true;
-  // fallback: not resolved by analysis and no closed_at
   if (s === "resolvido" || s === "fechado" || s === "closed") return false;
   return !r.analysis?.resolved && !r.closed_at;
 }
@@ -22,43 +29,64 @@ function lastActivityIso(r: CaseRow, msgs: Record<number, Message[]>): string | 
   return r.last_activity_at || r.opened_at || null;
 }
 
+// Hook para filtro local reutilizável
+function useLocalDateFilter() {
+  const [preset, setPreset] = useState<PresetKey>(DEFAULT_PRESET);
+  const [range, setRange] = useState<DateRange>(() => rangeForPreset(DEFAULT_PRESET));
+  const onChange = (p: PresetKey, r: DateRange) => {
+    setPreset(p);
+    setRange(r);
+  };
+  return { preset, range, onChange };
+}
+
 function MetricSection({
   icon: Icon,
   title,
   subtitle,
   children,
   accent,
+  filter,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   title: string;
   subtitle?: string;
   children: React.ReactNode;
   accent: string;
+  filter?: React.ReactNode;
 }) {
   return (
     <div className="glass-card overflow-hidden fade-in">
-      <div className="flex items-center gap-3 px-5 py-4 border-b border-border bg-surface/40">
-        <div
-          className="flex h-9 w-9 items-center justify-center rounded-lg"
-          style={{ background: `color-mix(in oklab, ${accent} 18%, transparent)`, color: accent }}
-        >
-          <Icon className="h-4 w-4" />
+      <div className="flex flex-col gap-3 px-5 py-4 border-b border-border bg-surface/40">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3">
+            <div
+              className="flex h-9 w-9 items-center justify-center rounded-lg"
+              style={{ background: `color-mix(in oklab, ${accent} 18%, transparent)`, color: accent }}
+            >
+              <Icon className="h-4 w-4" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+              {subtitle && <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>}
+            </div>
+          </div>
         </div>
-        <div>
-          <h3 className="text-sm font-semibold text-foreground">{title}</h3>
-          {subtitle && <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>}
-        </div>
+        {filter && <div>{filter}</div>}
       </div>
       {children}
     </div>
   );
 }
 
-// ---------- Section 1: Recurrence by problem_fingerprint ----------
+// ---------- Section 1: Recurrence by problem_fingerprint (com filtro próprio) ----------
 function RecurrenceSection({ rows, onRowClick }: { rows: CaseRow[]; onRowClick: (r: CaseRow) => void }) {
+  const { preset, range, onChange } = useLocalDateFilter();
+  const filtered = useMemo(() => filterByDateRange(rows, range), [rows, range]);
+
   const groups = useMemo(() => {
     const map = new Map<string, CaseRow[]>();
-    for (const r of rows) {
+    for (const r of filtered) {
       const fp = r.analysis?.problem_fingerprint;
       if (!fp) continue;
       if (!map.has(fp)) map.set(fp, []);
@@ -69,7 +97,7 @@ function RecurrenceSection({ rows, onRowClick }: { rows: CaseRow[]; onRowClick: 
       .filter((g) => g.count >= 2)
       .sort((a, b) => b.count - a.count)
       .slice(0, 10);
-  }, [rows]);
+  }, [filtered]);
 
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const toggle = (fp: string) => setOpen((o) => ({ ...o, [fp]: !o[fp] }));
@@ -82,10 +110,11 @@ function RecurrenceSection({ rows, onRowClick }: { rows: CaseRow[]; onRowClick: 
       title="Reincidência de Problemas"
       subtitle="Top 10 fingerprints mais reportados (≥ 2 ocorrências)"
       accent="var(--brand-orange)"
+      filter={<OverviewDateFilter preset={preset} range={range} onChange={onChange} />}
     >
       {groups.length === 0 ? (
         <div className="px-5 py-10 text-center text-sm text-muted-foreground">
-          Nenhum problema reincidente identificado.
+          Nenhum problema reincidente identificado no período selecionado.
         </div>
       ) : (
         <div className="divide-y divide-border/40">
@@ -317,7 +346,7 @@ function WaitingSection({
   );
 }
 
-// ---------- Section 3: First-responder vs Resolver ranking ----------
+// ---------- Section 3: Ranking (com filtro individual) ----------
 type RankItem = { key: string; name: string; area: Area | null; count: number };
 
 function buildRanking(
@@ -340,24 +369,36 @@ function buildRanking(
   return Array.from(map.values()).sort((a, b) => b.count - a.count);
 }
 
-function RankingTable({
+function FilteredRankingTable({
   icon: Icon,
   title,
   subtitle,
-  data,
+  rows,
+  pick,
   accent,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   title: string;
   subtitle: string;
-  data: RankItem[];
+  rows: CaseRow[];
+  pick: (a: NonNullable<CaseRow["analysis"]>) => { name: string | null | undefined; team: string | null | undefined } | null;
   accent: string;
 }) {
+  const { preset, range, onChange } = useLocalDateFilter();
+  const filtered = useMemo(() => filterByDateRange(rows, range), [rows, range]);
+  const data = useMemo(() => buildRanking(filtered, pick), [filtered, pick]);
   const max = data[0]?.count || 1;
+
   return (
-    <MetricSection icon={Icon} title={title} subtitle={subtitle} accent={accent}>
+    <MetricSection
+      icon={Icon}
+      title={title}
+      subtitle={subtitle}
+      accent={accent}
+      filter={<OverviewDateFilter preset={preset} range={range} onChange={onChange} />}
+    >
       {data.length === 0 ? (
-        <div className="px-5 py-10 text-center text-sm text-muted-foreground">Sem dados.</div>
+        <div className="px-5 py-10 text-center text-sm text-muted-foreground">Sem dados no período selecionado.</div>
       ) : (
         <div className="overflow-x-auto scrollbar-thin max-h-[480px]">
           <table className="w-full text-sm">
@@ -415,15 +456,6 @@ export function MetricsTab({
   messagesMap: Record<number, Message[]>;
   onRowClick: (r: CaseRow) => void;
 }) {
-  const firstResponders = useMemo(
-    () => buildRanking(rows, (a) => ({ name: a.first_responder_name, team: a.first_responder_team })),
-    [rows],
-  );
-  const resolvers = useMemo(
-    () => buildRanking(rows, (a) => (a.resolved ? { name: a.resolver_name, team: a.resolver_team } : null)),
-    [rows],
-  );
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3">
@@ -432,21 +464,26 @@ export function MetricsTab({
         </div>
         <ExportButton rows={rows} scope="metricas" messagesMap={messagesMap} />
       </div>
+
       <RecurrenceSection rows={rows} onRowClick={onRowClick} />
+
       <WaitingSection rows={rows} messagesMap={messagesMap} onRowClick={onRowClick} />
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <RankingTable
+        <FilteredRankingTable
           icon={Trophy}
-          title="Ranking · 1º Atendimento"
-          subtitle="Quem mais responde primeiro nos casos"
-          data={firstResponders}
+          title="Quem responde primeiro e resolve os casos rápido"
+          subtitle="Ranking de primeiro atendimento"
+          rows={rows}
+          pick={(a) => ({ name: a.first_responder_name, team: a.first_responder_team })}
           accent="var(--brand-blue)"
         />
-        <RankingTable
+        <FilteredRankingTable
           icon={CheckCircle2}
           title="Ranking · Resolvedores"
           subtitle="Quem mais resolve casos tecnicamente"
-          data={resolvers}
+          rows={rows}
+          pick={(a) => (a.resolved ? { name: a.resolver_name, team: a.resolver_team } : null)}
           accent="var(--brand-green)"
         />
       </div>

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock } from "lucide-react";
 import type { CaseRow, Message } from "@/lib/supabase";
-import { getPriority } from "@/lib/format";
+import { getPriority, SLA_MINUTES } from "@/lib/format";
 
 function getLastActivity(row: CaseRow, messages?: Message[]): string | null {
   if (row.last_activity_at) return row.last_activity_at;
@@ -16,11 +16,46 @@ function fmtWaiting(minutes: number): string {
   return `${Math.floor(h / 24)}d aguardando`;
 }
 
-function waitingColor(minutes: number): string {
-  if (minutes < 30) return "#10b981";
-  if (minutes < 120) return "#f59e0b";
-  if (minutes < 480) return "#f97316";
-  return "#ef4444";
+// Status do SLA: aviso antecipado baseado em % do SLA da prioridade
+type SlaState = "ok" | "warn" | "critical" | "breached";
+
+function getSlaState(minutes: number, priority: string | null): SlaState {
+  // Sem prioridade definida → usa thresholds genéricos
+  if (!priority) {
+    if (minutes < 30) return "ok";
+    if (minutes < 120) return "warn";
+    if (minutes < 480) return "critical";
+    return "breached";
+  }
+  const sla = SLA_MINUTES[priority];
+  if (!sla) return "ok";
+  const pct = minutes / sla;
+  if (pct >= 1) return "breached";
+  if (pct >= 0.75) return "critical";
+  if (pct >= 0.5) return "warn";
+  return "ok";
+}
+
+function stateColor(state: SlaState): string {
+  switch (state) {
+    case "ok":        return "#10b981";
+    case "warn":      return "#f59e0b";
+    case "critical":  return "#f97316";
+    case "breached":  return "#ef4444";
+  }
+}
+
+function stateLabel(state: SlaState, priority: string | null, minutes: number): string {
+  if (!priority) return "";
+  const sla = SLA_MINUTES[priority];
+  if (!sla) return "";
+  const remaining = sla - minutes;
+  switch (state) {
+    case "ok":        return `SLA ${priority} · dentro do prazo`;
+    case "warn":      return `SLA ${priority} · ${Math.round(remaining)}min restantes`;
+    case "critical":  return `SLA ${priority} · ${Math.round(remaining)}min para estourar`;
+    case "breached":  return `SLA ${priority} · estourado há ${Math.round(-remaining)}min`;
+  }
 }
 
 function priorityBadge(p: string | null | undefined) {
@@ -48,6 +83,13 @@ type Props = {
   onRowClick?: (row: CaseRow) => void;
 };
 
+type EnrichedRow = {
+  row: CaseRow;
+  minutes: number;
+  priority: string | null;
+  slaState: SlaState;
+};
+
 export function WaitingAlertBanner({ rows, messagesMap, onRowClick }: Props) {
   // Tick every 60s to refresh waiting times
   const [now, setNow] = useState<number>(() => Date.now());
@@ -56,29 +98,51 @@ export function WaitingAlertBanner({ rows, messagesMap, onRowClick }: Props) {
     return () => clearInterval(id);
   }, []);
 
-  const top = useMemo(() => {
+  const { active, stats } = useMemo(() => {
     const open = rows.filter((r) => {
       const status = (r.status || "").toLowerCase();
-      // Treat as open: status 'aberto' OR no closed_at
       if (status === "aberto" || status === "open") return true;
       if (!r.closed_at && status !== "fechado" && status !== "closed" && status !== "resolvido") return true;
       return false;
     });
-    const enriched = open
+
+    const enriched: EnrichedRow[] = open
       .map((r) => {
         const last = getLastActivity(r, messagesMap[r.id]);
         if (!last) return null;
         const minutes = (now - new Date(last).getTime()) / 60000;
         if (!isFinite(minutes) || minutes < 0) return null;
-        return { row: r, minutes };
+        const priority = getPriority(r);
+        const slaState = getSlaState(minutes, priority);
+        return { row: r, minutes, priority, slaState };
       })
-      .filter((x): x is { row: CaseRow; minutes: number } => !!x)
-      .sort((a, b) => b.minutes - a.minutes)
-      .slice(0, 3);
-    return enriched;
+      .filter((x): x is EnrichedRow => !!x);
+
+    // Mostra apenas os que precisam de atenção (warn/critical/breached)
+    // Casos 'ok' não aparecem no banner pra não poluir
+    const attention = enriched
+      .filter((e) => e.slaState !== "ok")
+      .sort((a, b) => {
+        // Ordena por gravidade: breached > critical > warn
+        const severity = { breached: 3, critical: 2, warn: 1, ok: 0 };
+        const sa = severity[a.slaState];
+        const sb = severity[b.slaState];
+        if (sa !== sb) return sb - sa;
+        return b.minutes - a.minutes;
+      })
+      .slice(0, 5);
+
+    const counts = {
+      breached: enriched.filter((e) => e.slaState === "breached").length,
+      critical: enriched.filter((e) => e.slaState === "critical").length,
+      warn:     enriched.filter((e) => e.slaState === "warn").length,
+      total:    enriched.length,
+    };
+
+    return { active: attention, stats: counts };
   }, [rows, messagesMap, now]);
 
-  if (top.length === 0) {
+  if (stats.total === 0) {
     return (
       <div
         className="rounded-[10px] px-5 py-4 flex items-center gap-3"
@@ -93,69 +157,141 @@ export function WaitingAlertBanner({ rows, messagesMap, onRowClick }: Props) {
     );
   }
 
+  if (active.length === 0) {
+    return (
+      <div
+        className="rounded-[10px] px-5 py-4 flex items-center gap-3"
+        style={{
+          background: "linear-gradient(135deg, rgba(16,185,129,0.08), rgba(16,185,129,0.03))",
+          border: "1px solid rgba(16,185,129,0.2)",
+        }}
+      >
+        <CheckCircle2 size={20} style={{ color: "#10b981" }} />
+        <span className="text-[13px] text-foreground/90">
+          {stats.total} caso(s) em aberto, todos dentro do SLA
+        </span>
+      </div>
+    );
+  }
+
+  // Cor do banner baseada na maior gravidade
+  const hasBreached = stats.breached > 0;
+  const hasCritical = stats.critical > 0;
+  const primaryColor = hasBreached ? "#ef4444" : hasCritical ? "#f97316" : "#f59e0b";
+  const bgGradient = hasBreached
+    ? "linear-gradient(135deg, rgba(239,68,68,0.08), rgba(249,115,22,0.04))"
+    : hasCritical
+    ? "linear-gradient(135deg, rgba(249,115,22,0.08), rgba(245,158,11,0.04))"
+    : "linear-gradient(135deg, rgba(245,158,11,0.08), rgba(245,158,11,0.03))";
+
   return (
     <div
       className="rounded-[10px] px-5 py-4"
       style={{
-        background: "linear-gradient(135deg, rgba(239,68,68,0.08), rgba(249,115,22,0.04))",
-        border: "1px solid rgba(239,68,68,0.2)",
+        background: bgGradient,
+        border: `1px solid ${primaryColor}33`,
       }}
     >
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
         <div className="flex items-center gap-2">
-          <AlertTriangle size={20} style={{ color: "#ef4444" }} />
+          {hasBreached ? (
+            <AlertTriangle size={20} style={{ color: primaryColor }} />
+          ) : (
+            <Clock size={20} style={{ color: primaryColor }} />
+          )}
           <span
             className="text-[10px] font-semibold uppercase"
-            style={{ color: "#ef4444", letterSpacing: "0.1em" }}
+            style={{ color: primaryColor, letterSpacing: "0.1em" }}
           >
-            Tempo aguardando atendimento
+            Casos aguardando atendimento
           </span>
         </div>
-        <span
-          className="text-[10px] font-semibold px-2 py-1 rounded"
-          style={{
-            background: "rgba(239,68,68,0.15)",
-            color: "#ef4444",
-            border: "1px solid rgba(239,68,68,0.3)",
-          }}
-        >
-          {top.length} {top.length === 1 ? "caso crítico" : "casos críticos"}
-        </span>
+        <div className="flex items-center gap-2">
+          {stats.breached > 0 && (
+            <span
+              className="text-[10px] font-semibold px-2 py-1 rounded"
+              style={{
+                background: "rgba(239,68,68,0.15)",
+                color: "#ef4444",
+                border: "1px solid rgba(239,68,68,0.3)",
+              }}
+            >
+              {stats.breached} estourado{stats.breached > 1 ? "s" : ""}
+            </span>
+          )}
+          {stats.critical > 0 && (
+            <span
+              className="text-[10px] font-semibold px-2 py-1 rounded"
+              style={{
+                background: "rgba(249,115,22,0.15)",
+                color: "#f97316",
+                border: "1px solid rgba(249,115,22,0.3)",
+              }}
+            >
+              {stats.critical} crítico{stats.critical > 1 ? "s" : ""}
+            </span>
+          )}
+          {stats.warn > 0 && (
+            <span
+              className="text-[10px] font-semibold px-2 py-1 rounded"
+              style={{
+                background: "rgba(245,158,11,0.15)",
+                color: "#f59e0b",
+                border: "1px solid rgba(245,158,11,0.3)",
+              }}
+            >
+              {stats.warn} em alerta
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="flex flex-col">
-        {top.map(({ row, minutes }) => (
-          <button
-            key={row.id}
-            type="button"
-            onClick={() => onRowClick?.(row)}
-            className="flex items-center gap-3 px-2 py-2 rounded transition-colors text-left"
-            style={{ background: "transparent" }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.02)")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-          >
-            <span
-              className="font-mono text-[12px] font-semibold tabular-nums shrink-0"
-              style={{ color: "#256EFF", minWidth: 64 }}
+        {active.map(({ row, minutes, priority, slaState }) => {
+          const color = stateColor(slaState);
+          const label = stateLabel(slaState, priority, minutes);
+          return (
+            <button
+              key={row.id}
+              type="button"
+              onClick={() => onRowClick?.(row)}
+              className="flex items-center gap-3 px-2 py-2 rounded transition-colors text-left"
+              style={{ background: "transparent" }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.02)")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
             >
-              #{row.idclinic || row.case_number || row.id}
-            </span>
-            <span
-              className="text-[13px] text-foreground/90 truncate flex-1"
-              style={{ maxWidth: 280 }}
-              title={row.thread_title || ""}
-            >
-              {row.thread_title || "Sem título"}
-            </span>
-            <span
-              className="text-[12px] font-bold tabular-nums shrink-0"
-              style={{ color: waitingColor(minutes), minWidth: 130, textAlign: "right" }}
-            >
-              {fmtWaiting(minutes)}
-            </span>
-            <span className="shrink-0">{priorityBadge(getPriority(row))}</span>
-          </button>
-        ))}
+              <span
+                className="font-mono text-[12px] font-semibold tabular-nums shrink-0"
+                style={{ color: "#256EFF", minWidth: 64 }}
+              >
+                #{row.idclinic || row.case_number || row.id}
+              </span>
+              <div className="flex-1 min-w-0">
+                <div
+                  className="text-[13px] text-foreground/90 truncate"
+                  title={row.thread_title || ""}
+                >
+                  {row.thread_title || "Sem título"}
+                </div>
+                {label && (
+                  <div
+                    className="text-[10px] tabular-nums mt-0.5"
+                    style={{ color }}
+                  >
+                    {label}
+                  </div>
+                )}
+              </div>
+              <span
+                className="text-[12px] font-bold tabular-nums shrink-0"
+                style={{ color, minWidth: 130, textAlign: "right" }}
+              >
+                {fmtWaiting(minutes)}
+              </span>
+              <span className="shrink-0">{priorityBadge(priority)}</span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );

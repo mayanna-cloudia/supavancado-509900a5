@@ -11,15 +11,25 @@ export type PresetKey = "today" | "7d" | "30d" | "month" | "year" | "custom";
 
 export const DEFAULT_PRESET: PresetKey = "year";
 
+// Data mínima permitida: 1 de janeiro do ano atual
+export function minAllowedDate(): Date {
+  return startOfYear(new Date());
+}
+
+function clampFrom(d: Date): Date {
+  const min = minAllowedDate();
+  return d < min ? min : d;
+}
+
 export function rangeForPreset(preset: PresetKey): DateRange {
   const now = new Date();
   const end = new Date();
   end.setHours(23, 59, 59, 999);
   switch (preset) {
-    case "today":   return { from: startOfDay(now), to: end };
-    case "7d":      return { from: startOfDay(subDays(now, 6)), to: end };
-    case "30d":     return { from: startOfDay(subDays(now, 29)), to: end };
-    case "month":   return { from: startOfMonth(now), to: end };
+    case "today":   return { from: clampFrom(startOfDay(now)), to: end };
+    case "7d":      return { from: clampFrom(startOfDay(subDays(now, 6))), to: end };
+    case "30d":     return { from: clampFrom(startOfDay(subDays(now, 29))), to: end };
+    case "month":   return { from: clampFrom(startOfMonth(now)), to: end };
     case "year":    return { from: startOfYear(now), to: end };
     case "custom":  return {};
   }
@@ -41,6 +51,7 @@ type Props = {
 
 export function OverviewDateFilter({ preset, range, onChange }: Props) {
   const [open, setOpen] = useState(false);
+  const minDate = useMemo(() => minAllowedDate(), []);
 
   const indicator = useMemo(() => {
     if (!range.from && !range.to) return "Mostrando todos os dados";
@@ -112,8 +123,11 @@ export function OverviewDateFilter({ preset, range, onChange }: Props) {
               mode="range"
               selected={{ from: range.from, to: range.to }}
               onSelect={(r) => {
-                onChange("custom", { from: r?.from, to: r?.to });
+                const clampedFrom = r?.from && r.from < minDate ? minDate : r?.from;
+                onChange("custom", { from: clampedFrom, to: r?.to });
               }}
+              disabled={(date) => date < minDate}
+              fromDate={minDate}
               numberOfMonths={2}
               locale={ptBR}
               className={cn("p-3 pointer-events-auto")}
@@ -122,7 +136,14 @@ export function OverviewDateFilter({ preset, range, onChange }: Props) {
         </Popover>
       </div>
 
-      <p className="mt-2 text-[11px] text-muted-foreground tabular-nums">{indicator}</p>
+      <p className="mt-2 text-[11px] text-muted-foreground tabular-nums">
+        {indicator}
+        {preset !== "year" && (
+          <span className="ml-2 opacity-60">
+            · dados disponíveis desde {format(minDate, "dd/MM/yyyy", { locale: ptBR })}
+          </span>
+        )}
+      </p>
     </div>
   );
 }

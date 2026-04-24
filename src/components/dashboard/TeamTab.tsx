@@ -1,8 +1,15 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from "recharts";
 import type { CaseRow, Message } from "@/lib/supabase";
 import { lookupMember, AREA_LABEL, AREA_COLOR_HEX, ALL_AREAS, type Area } from "@/lib/team";
-import { cn } from "@/lib/utils";
+import {
+  OverviewDateFilter,
+  rangeForPreset,
+  filterByDateRange,
+  DEFAULT_PRESET,
+  type DateRange,
+  type PresetKey,
+} from "@/components/dashboard/OverviewDateFilter";
 
 const tooltipStyle = {
   contentStyle: { background: "#131929", border: "1px solid #1f2940", borderRadius: 8, color: "#e6e9f2", fontSize: 12 },
@@ -107,21 +114,27 @@ function Section({
 }
 
 export function TeamTab({ rows, messagesMap }: { rows: CaseRow[]; messagesMap: Record<number, Message[]> }) {
-  // Threads created = unique opener per case (first message author or first participant)
+  // Filtro local de data
+  const [preset, setPreset] = useState<PresetKey>(DEFAULT_PRESET);
+  const [range, setRange] = useState<DateRange>(() => rangeForPreset(DEFAULT_PRESET));
+
+  const filteredRows = useMemo(() => filterByDateRange(rows, range), [rows, range]);
+
+  // Suporte Avançado criados = primeiro autor não-bot de cada caso
   const created = useMemo(() => {
     const out: { username: string }[] = [];
-    for (const r of rows) {
+    for (const r of filteredRows) {
       const msgs = messagesMap[r.id] || [];
       const opener = msgs[0]?.author_username;
       if (opener) out.push({ username: opener });
     }
     return out;
-  }, [rows, messagesMap]);
+  }, [filteredRows, messagesMap]);
 
-  // Threads participated = unique (case_id, username) pair
+  // Suporte Avançado participados = par único (caso_id, username)
   const participated = useMemo(() => {
     const out: { username: string }[] = [];
-    for (const r of rows) {
+    for (const r of filteredRows) {
       const msgs = messagesMap[r.id] || [];
       const seen = new Set<string>();
       for (const m of msgs) {
@@ -132,18 +145,26 @@ export function TeamTab({ rows, messagesMap }: { rows: CaseRow[]; messagesMap: R
       }
     }
     return out;
-  }, [rows, messagesMap]);
+  }, [filteredRows, messagesMap]);
 
   return (
     <div className="grid grid-cols-1 gap-6">
+      <OverviewDateFilter
+        preset={preset}
+        range={range}
+        onChange={(p, r) => {
+          setPreset(p);
+          setRange(r);
+        }}
+      />
       <Section
-        title="Threads participadas"
+        title="Suporte Avançado Participados"
         subtitle="Cada par único (caso, pessoa) — mostra alcance da participação"
         items={participated}
       />
       <Section
-        title="Threads criadas"
-        subtitle="Quem abriu o caso (primeiro autor da thread)"
+        title="Suporte Avançado Criados"
+        subtitle="Quem abriu o caso (primeiro autor do suporte avançado)"
         items={created}
       />
     </div>

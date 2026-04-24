@@ -1,9 +1,17 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { CaseRow, Message } from "@/lib/supabase";
 import { SLA_MINUTES, fmtDuration, fmtFirstResponse, priorityBadgeClass, getPriority } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { lookupMember, normalizeResolverTeam, AREA_BADGE, type Area } from "@/lib/team";
 import { ExportButton } from "@/components/dashboard/ExportButton";
+import {
+  OverviewDateFilter,
+  rangeForPreset,
+  filterByDateRange,
+  DEFAULT_PRESET,
+  type DateRange,
+  type PresetKey,
+} from "@/components/dashboard/OverviewDateFilter";
 
 type SLAStat = {
   priority: "P1" | "P2" | "P3";
@@ -50,17 +58,37 @@ function pctColor(pct: number): string {
 }
 
 export function SLATab({ rows, onRowClick, messagesMap }: { rows: CaseRow[]; onRowClick: (r: CaseRow) => void; messagesMap?: Record<number, Message[]> }) {
-  const stats = useMemo(() => computeSLA(rows), [rows]);
-  const measured = useMemo(() => rows.filter((r) => r.first_response_minutes != null && getPriority(r)), [rows]);
+  // Filtro local de data (independente da Visão Geral)
+  const [preset, setPreset] = useState<PresetKey>(DEFAULT_PRESET);
+  const [range, setRange] = useState<DateRange>(() => rangeForPreset(DEFAULT_PRESET));
+
+  const filteredRows = useMemo(() => filterByDateRange(rows, range), [rows, range]);
+
+  const stats = useMemo(() => computeSLA(filteredRows), [filteredRows]);
+  const measured = useMemo(
+    () => filteredRows.filter((r) => r.first_response_minutes != null && getPriority(r)),
+    [filteredRows]
+  );
 
   return (
     <div className="space-y-6">
+      {/* Filtro de período */}
+      <OverviewDateFilter
+        preset={preset}
+        range={range}
+        onChange={(p, r) => {
+          setPreset(p);
+          setRange(r);
+        }}
+      />
+
       <div className="flex items-center justify-between gap-3">
         <div className="text-xs text-muted-foreground">
           {measured.length.toLocaleString("pt-BR")} casos com 1ª resposta mensurada
         </div>
         <ExportButton rows={measured} scope="sla" messagesMap={messagesMap} />
       </div>
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {stats.map((s) => {
           const color = pctColor(s.pct);
