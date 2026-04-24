@@ -85,15 +85,22 @@ function RecurrenceSection({ rows, onRowClick }: { rows: CaseRow[]; onRowClick: 
   const filtered = useMemo(() => filterByDateRange(rows, range), [rows, range]);
 
   const groups = useMemo(() => {
-    const map = new Map<string, CaseRow[]>();
+    const map = new Map<string, { label: string | null; list: CaseRow[] }>();
     for (const r of filtered) {
       const fp = r.analysis?.problem_fingerprint;
       if (!fp) continue;
-      if (!map.has(fp)) map.set(fp, []);
-      map.get(fp)!.push(r);
+      if (!map.has(fp)) {
+        map.set(fp, { label: r.analysis?.problem_label || null, list: [] });
+      }
+      const entry = map.get(fp)!;
+      entry.list.push(r);
+      // Usa o primeiro label encontrado para esse fingerprint
+      if (!entry.label && r.analysis?.problem_label) {
+        entry.label = r.analysis.problem_label;
+      }
     }
     return Array.from(map.entries())
-      .map(([fp, list]) => ({ fp, list, count: list.length }))
+      .map(([fp, { label, list }]) => ({ fp, label, list, count: list.length }))
       .filter((g) => g.count >= 2)
       .sort((a, b) => b.count - a.count)
       .slice(0, 10);
@@ -132,8 +139,8 @@ function RecurrenceSection({ rows, onRowClick }: { rows: CaseRow[]; onRowClick: 
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs text-foreground/90 truncate" title={g.fp}>
-                        {g.fp}
+                      <span className="text-sm font-medium text-foreground truncate" title={g.fp}>
+                        {g.label || g.fp}
                       </span>
                       {sample?.category && (
                         <span className="text-[10px] uppercase tracking-wider text-muted-foreground bg-surface px-1.5 py-0.5 rounded">

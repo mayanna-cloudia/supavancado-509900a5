@@ -59,6 +59,7 @@ export type Analysis = {
   analyzed_at: string;
   first_response_minutes?: number | null;
   problem_fingerprint?: string | null;
+  problem_label?: string | null;
   first_responder_username?: string | null;
   first_responder_name?: string | null;
   first_responder_team?: string | null;
