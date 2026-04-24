@@ -1,10 +1,14 @@
 import { useMemo, useState } from "react";
+import { Download } from "lucide-react";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid,
   PieChart, Pie, Cell, BarChart, Bar, Legend,
 } from "recharts";
 import type { CaseRow, Message } from "@/lib/supabase";
 import { fmtDuration, weekKey, weekLabel, getPriority } from "@/lib/format";
+import { exportOverviewCSV } from "@/lib/csv";
 import { KpiCard } from "./KpiCard";
 import { WaitingAlertBanner } from "./WaitingAlertBanner";
 import {
