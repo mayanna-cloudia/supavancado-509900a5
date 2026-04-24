@@ -156,7 +156,7 @@ function FiltersBody({
         </Select>
 
         <Select value={filters.resolver} onValueChange={(v) => update({ resolver: v })}>
-          <SelectTrigger className="h-8 w-full sm:w-[190px] bg-surface border-border text-xs">
+          <SelectTrigger aria-label="Filtrar por quem resolveu" className="h-8 w-full sm:w-[190px] bg-surface border-border text-xs">
             <SelectValue placeholder="Quem resolveu" />
           </SelectTrigger>
           <SelectContent className="bg-card border-border max-h-[300px]">
@@ -167,19 +167,43 @@ function FiltersBody({
           </SelectContent>
         </Select>
 
+        <Select value={filters.area} onValueChange={(v) => update({ area: v as Filters["area"] })}>
+          <SelectTrigger aria-label="Filtrar por área resolvedora" className="h-8 w-full sm:w-[170px] bg-surface border-border text-xs">
+            <SelectValue placeholder="Área" />
+          </SelectTrigger>
+          <SelectContent className="bg-card border-border">
+            <SelectItem value="all">Todas as áreas</SelectItem>
+            <SelectItem value="SuporteN2">Suporte N2</SelectItem>
+            <SelectItem value="Chatbot">Chatbot</SelectItem>
+            <SelectItem value="AM">AM</SelectItem>
+            <SelectItem value="unassigned">Não atribuído</SelectItem>
+          </SelectContent>
+        </Select>
+
         <div className="relative flex-1 min-w-[180px]">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <input
             placeholder="Buscar título, IDCLINIC, resumo…"
             value={filters.search}
             onChange={(e) => update({ search: e.target.value })}
+            aria-label="Buscar casos"
             className="h-8 w-full rounded-md bg-surface border border-border pl-8 pr-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-[var(--brand-blue)] transition-colors"
           />
         </div>
 
-        <Button variant="ghost" size="sm" onClick={clear} className="text-xs text-muted-foreground hover:text-foreground">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={clear}
+          className={cn(
+            "text-xs transition-colors",
+            activeCount > 0
+              ? "text-[var(--brand-blue)] border border-[var(--brand-blue)] hover:bg-[var(--brand-blue)]/10"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
           <X className="h-3.5 w-3.5" />
-          Limpar
+          {activeCount > 0 ? `Limpar (${activeCount})` : "Limpar"}
         </Button>
       </div>
 
