@@ -51,7 +51,7 @@ export function OverviewTab({
   const [preset, setPreset] = useState<PresetKey>(DEFAULT_PRESET);
   const [range, setRange] = useState<DateRange>(() => rangeForPreset(DEFAULT_PRESET));
 
-  const rows = useMemo(() => filterByDateRange(allRows, range), [allRows, range]);
+  const filteredRows = useMemo(() => filterByDateRange(allRows, range), [allRows, range]);
 
   const stats = useMemo(() => {
     const total = rows.length;
