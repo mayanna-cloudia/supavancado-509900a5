@@ -53,6 +53,20 @@ export function priorityBadgeClass(p: string | null | undefined): string {
   return "bg-muted/30 text-muted-foreground border-border";
 }
 
+// Resolves the canonical priority for a case. Source of truth is cases.priority
+// (Discord tag). Falls back to analysis.priority for backward compatibility,
+// but the IA must NEVER set priority.
+export function getPriority(r: {
+  priority?: string | null;
+  analysis?: { priority?: string | null } | null;
+}): string | null {
+  const fromCase = (r.priority || "").toUpperCase();
+  if (fromCase === "P1" || fromCase === "P2" || fromCase === "P3") return fromCase;
+  const fromAnalysis = (r.analysis?.priority || "").toUpperCase();
+  if (fromAnalysis === "P1" || fromAnalysis === "P2" || fromAnalysis === "P3") return fromAnalysis;
+  return null;
+}
+
 // SLA targets in minutes (1st response) - per spec: P1=4h, P2=2h, P3=30min
 export const SLA_MINUTES: Record<string, number> = {
   P1: 4 * 60,

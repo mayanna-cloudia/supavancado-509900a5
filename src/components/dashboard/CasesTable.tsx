@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Calendar as CalendarIcon, Search, X, SlidersHorizontal } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Calendar as CalendarIcon, Search, X, SlidersHorizontal, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar";
@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import type { CaseRow } from "@/lib/supabase";
-import { priorityBadgeClass, fmtFirstResponse, isWithinSLA } from "@/lib/format";
+import { priorityBadgeClass, fmtFirstResponse, isWithinSLA, getPriority } from "@/lib/format";
 import { lookupMember, normalizeResolverTeam, AREA_BADGE, AREA_LABEL, type Area } from "@/lib/team";
 
 export type Filters = {
@@ -42,7 +42,7 @@ export function applyFilters(rows: CaseRow[], f: Filters): CaseRow[] {
       if (new Date(r.opened_at) > end) return false;
     }
     if (f.idclinic !== "all" && r.idclinic !== f.idclinic) return false;
-    if (f.priority !== "all" && (r.analysis?.priority || "").toUpperCase() !== f.priority) return false;
+    if (f.priority !== "all" && getPriority(r) !== f.priority) return false;
     if (f.status !== "all") {
       const resolved = !!r.analysis?.resolved;
       if (f.status === "resolved" && !resolved) return false;
@@ -317,10 +317,11 @@ export function FiltersBar({
 function CaseCard({ r, onClick }: { r: CaseRow; onClick: () => void }) {
   const a = r.analysis;
   const resolved = !!a?.resolved;
+  const priority = getPriority(r);
   const team = a ? (normalizeResolverTeam(a.resolver_team) || lookupMember(a.resolver_name).area) : null;
   const resolverDisplay = a?.resolver_name ? lookupMember(a.resolver_name).name : "—";
   const fr = r.first_response_minutes ?? null;
-  const ok = isWithinSLA(fr, a?.priority);
+  const ok = isWithinSLA(fr, priority);
   const frColor = ok === true ? "var(--brand-green)" : ok === false ? "var(--brand-red)" : undefined;
 
   return (
@@ -331,9 +332,9 @@ function CaseCard({ r, onClick }: { r: CaseRow; onClick: () => void }) {
       <div className="flex items-start justify-between gap-2 mb-2">
         <span className="font-mono text-[11px] text-muted-foreground">{r.idclinic || "—"}</span>
         <div className="flex items-center gap-1.5 shrink-0">
-          {a?.priority && (
-            <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-semibold border", priorityBadgeClass(a.priority))}>
-              {a.priority.toUpperCase()}
+          {priority && (
+            <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-semibold border", priorityBadgeClass(priority))}>
+              {priority}
             </span>
           )}
           <span className={cn(
@@ -388,23 +389,41 @@ function CaseCard({ r, onClick }: { r: CaseRow; onClick: () => void }) {
   );
 }
 
+const PAGE_SIZES = [100, 250, 500, 1000] as const;
+const DEFAULT_PAGE_SIZE = 500;
+
 export function CasesTable({ rows, onRowClick }: { rows: CaseRow[]; onRowClick: (r: CaseRow) => void }) {
+  const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
+  const [page, setPage] = useState(1);
+
+  // Reset to page 1 when filtered rows shrink/grow or page size changes
+  useEffect(() => { setPage(1); }, [rows.length, pageSize]);
+
+  const total = rows.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const start = (safePage - 1) * pageSize;
+  const end = Math.min(start + pageSize, total);
+  const pageRows = useMemo(() => rows.slice(start, end), [rows, start, end]);
+  const showPagination = total > pageSize;
+
   return (
     <>
       {/* Mobile cards */}
       <div className="lg:hidden space-y-3">
-        {rows.length === 0 && (
+        {total === 0 && (
           <div className="glass-card glass-card-static p-8 text-center text-sm text-muted-foreground">
             Nenhum caso encontrado com os filtros atuais.
           </div>
         )}
-        {rows.slice(0, 200).map((r) => (
+        {pageRows.map((r) => (
           <CaseCard key={r.id} r={r} onClick={() => onRowClick(r)} />
         ))}
-        {rows.length > 200 && (
-          <div className="text-center text-xs text-muted-foreground py-2">
-            Exibindo 200 de {rows.length.toLocaleString("pt-BR")} resultados — refine os filtros.
-          </div>
+        {showPagination && (
+          <PaginationFooter
+            start={start} end={end} total={total} page={safePage} totalPages={totalPages}
+            pageSize={pageSize} onPage={setPage} onPageSize={setPageSize}
+          />
         )}
       </div>
 
@@ -426,12 +445,13 @@ export function CasesTable({ rows, onRowClick }: { rows: CaseRow[]; onRowClick: 
               </tr>
             </thead>
             <tbody>
-              {rows.length === 0 && (
+              {total === 0 && (
                 <tr><td colSpan={9} className="px-4 py-12 text-center text-muted-foreground">Nenhum caso encontrado com os filtros atuais.</td></tr>
               )}
-              {rows.slice(0, 500).map((r) => {
+              {pageRows.map((r) => {
                 const a = r.analysis;
                 const resolved = !!a?.resolved;
+                const priority = getPriority(r);
                 const team = a ? (normalizeResolverTeam(a.resolver_team) || lookupMember(a.resolver_name).area) : null;
                 const resolverDisplay = a?.resolver_name ? lookupMember(a.resolver_name).name : "—";
                 return (
@@ -445,9 +465,9 @@ export function CasesTable({ rows, onRowClick }: { rows: CaseRow[]; onRowClick: 
                       {r.thread_title || "(sem título)"}
                     </td>
                     <td className="px-3 py-3">
-                      {a?.priority ? (
-                        <span className={cn("px-2 py-0.5 rounded-md text-[11px] font-semibold border", priorityBadgeClass(a.priority))}>
-                          {a.priority.toUpperCase()}
+                      {priority ? (
+                        <span className={cn("px-2 py-0.5 rounded-md text-[11px] font-semibold border", priorityBadgeClass(priority))}>
+                          {priority}
                         </span>
                       ) : <span className="text-muted-foreground">—</span>}
                     </td>
@@ -459,7 +479,7 @@ export function CasesTable({ rows, onRowClick }: { rows: CaseRow[]; onRowClick: 
                     <td className="px-3 py-3 text-xs tabular-nums">
                       {(() => {
                         const fr = r.first_response_minutes ?? null;
-                        const ok = isWithinSLA(fr, a?.priority);
+                        const ok = isWithinSLA(fr, priority);
                         const color =
                           ok === true ? "var(--brand-green)" : ok === false ? "var(--brand-red)" : undefined;
                         return (
@@ -492,13 +512,60 @@ export function CasesTable({ rows, onRowClick }: { rows: CaseRow[]; onRowClick: 
             </tbody>
           </table>
         </div>
-        {rows.length > 500 && (
-          <div className="px-4 py-2 text-xs text-muted-foreground text-center border-t border-border bg-surface/40">
-            Exibindo 500 de {rows.length.toLocaleString("pt-BR")} resultados — refine os filtros para ver mais.
-          </div>
+        {showPagination && (
+          <PaginationFooter
+            start={start} end={end} total={total} page={safePage} totalPages={totalPages}
+            pageSize={pageSize} onPage={setPage} onPageSize={setPageSize}
+          />
         )}
       </div>
     </>
+  );
+}
+
+function PaginationFooter({
+  start, end, total, page, totalPages, pageSize, onPage, onPageSize,
+}: {
+  start: number; end: number; total: number; page: number; totalPages: number; pageSize: number;
+  onPage: (p: number) => void; onPageSize: (n: number) => void;
+}) {
+  const btn = "inline-flex items-center justify-center h-7 px-2 rounded-md border border-border bg-surface/60 text-xs text-foreground/90 transition-colors hover:bg-surface hover:border-[var(--brand-blue)]/60 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-surface/60 disabled:hover:border-border";
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 border-t border-border bg-surface/40 text-xs">
+      <div className="flex items-center gap-3">
+        <span className="text-muted-foreground tabular-nums">
+          Mostrando <span className="text-foreground font-medium">{(start + 1).toLocaleString("pt-BR")}–{end.toLocaleString("pt-BR")}</span> de <span className="text-foreground font-medium">{total.toLocaleString("pt-BR")}</span> casos
+        </span>
+        <div className="flex items-center gap-1.5">
+          <label htmlFor="page-size" className="text-muted-foreground">Itens:</label>
+          <select
+            id="page-size"
+            value={pageSize}
+            onChange={(e) => onPageSize(Number(e.target.value))}
+            className="h-7 rounded-md border border-border bg-surface/60 px-2 text-xs text-foreground focus:outline-none focus:border-[var(--brand-blue)]"
+          >
+            {PAGE_SIZES.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <button className={btn} onClick={() => onPage(1)} disabled={page <= 1} aria-label="Primeira página">
+          <ChevronsLeft className="h-3.5 w-3.5" />
+        </button>
+        <button className={btn} onClick={() => onPage(page - 1)} disabled={page <= 1} aria-label="Página anterior">
+          <ChevronLeft className="h-3.5 w-3.5" />
+        </button>
+        <span className="text-muted-foreground px-1.5 tabular-nums">
+          Página <span className="text-foreground font-medium">{page}</span> de <span className="text-foreground font-medium">{totalPages}</span>
+        </span>
+        <button className={btn} onClick={() => onPage(page + 1)} disabled={page >= totalPages} aria-label="Próxima página">
+          <ChevronRight className="h-3.5 w-3.5" />
+        </button>
+        <button className={btn} onClick={() => onPage(totalPages)} disabled={page >= totalPages} aria-label="Última página">
+          <ChevronsRight className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    </div>
   );
 }
 

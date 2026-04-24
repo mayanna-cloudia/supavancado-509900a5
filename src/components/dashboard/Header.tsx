@@ -51,7 +51,15 @@ export function LiveIndicator({ active }: { active: boolean; lastEvent: number }
   );
 }
 
-export function Header({ live, lastEvent }: { live: boolean; lastEvent: number }) {
+export function Header({
+  live,
+  lastEvent,
+  actions,
+}: {
+  live: boolean;
+  lastEvent: number;
+  actions?: React.ReactNode;
+}) {
   return (
     <header
       className="sticky top-0 z-30 border-b border-border"
@@ -79,7 +87,8 @@ export function Header({ live, lastEvent }: { live: boolean; lastEvent: number }
           </div>
         </div>
 
-        <div className="flex items-center gap-3 sm:gap-4 shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          {actions}
           <LiveIndicator active={live} lastEvent={lastEvent} />
           <LiveClock />
         </div>

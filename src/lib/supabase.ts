@@ -32,6 +32,8 @@ export type Case = {
   closed_at: string | null;
   last_activity_at: string | null;
   status: string | null;
+  /** Discord-tag priority (P1/P2/P3). Source of truth — IA never sets priority. */
+  priority?: string | null;
 };
 
 export type Message = {

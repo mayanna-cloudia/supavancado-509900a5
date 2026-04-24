@@ -1,10 +1,14 @@
 import { useMemo, useState } from "react";
+import { Download } from "lucide-react";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid,
   PieChart, Pie, Cell, BarChart, Bar, Legend,
 } from "recharts";
 import type { CaseRow, Message } from "@/lib/supabase";
-import { fmtDuration, weekKey, weekLabel } from "@/lib/format";
+import { fmtDuration, weekKey, weekLabel, getPriority } from "@/lib/format";
+import { exportOverviewCSV } from "@/lib/csv";
 import { KpiCard } from "./KpiCard";
 import { WaitingAlertBanner } from "./WaitingAlertBanner";
 import {
@@ -90,7 +94,7 @@ export function OverviewTab({
   const byPriority = useMemo(() => {
     const map: Record<string, number> = { P1: 0, P2: 0, P3: 0 };
     for (const r of rows) {
-      const p = (r.analysis?.priority || "").toUpperCase();
+      const p = getPriority(r);
       if (p === "P1" || p === "P2" || p === "P3") map[p]++;
     }
     return [
@@ -136,13 +140,36 @@ export function OverviewTab({
     }));
   }, [rows]);
 
+  const handleExport = () => {
+    const f = range.from ? format(range.from, "dd/MM/yyyy", { locale: ptBR }) : "início";
+    const t = range.to ? format(range.to, "dd/MM/yyyy", { locale: ptBR }) : "hoje";
+    const openerByCaseId: Record<number, string | null> = {};
+    for (const r of rows) {
+      const list = messagesMap[r.id];
+      openerByCaseId[r.id] = list && list.length ? list[0].author_username : null;
+    }
+    exportOverviewCSV(rows, `${f} → ${t}`, { openerByCaseId });
+  };
+
   return (
     <div className="space-y-6">
-      <OverviewDateFilter
-        preset={preset}
-        range={range}
-        onChange={(p, r) => { setPreset(p); setRange(r); }}
-      />
+      <div className="flex flex-col lg:flex-row lg:items-stretch gap-3">
+        <div className="flex-1 min-w-0">
+          <OverviewDateFilter
+            preset={preset}
+            range={range}
+            onChange={(p, r) => { setPreset(p); setRange(r); }}
+          />
+        </div>
+        <button
+          onClick={handleExport}
+          aria-label="Exportar visão geral em CSV"
+          className="inline-flex items-center justify-center gap-1.5 rounded-md border border-border bg-transparent px-3.5 py-2 text-xs font-medium text-foreground transition-all duration-200 hover:bg-surface hover:border-[var(--brand-blue)]/60 shrink-0 self-stretch lg:self-auto lg:my-auto"
+        >
+          <Download className="h-3.5 w-3.5" />
+          Exportar CSV
+        </button>
+      </div>
       <WaitingAlertBanner rows={rows} messagesMap={messagesMap} onRowClick={onRowClick} />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

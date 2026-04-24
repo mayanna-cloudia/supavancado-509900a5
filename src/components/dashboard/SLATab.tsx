@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import type { CaseRow, Message } from "@/lib/supabase";
-import { SLA_MINUTES, fmtDuration, fmtFirstResponse, priorityBadgeClass } from "@/lib/format";
+import { SLA_MINUTES, fmtDuration, fmtFirstResponse, priorityBadgeClass, getPriority } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { lookupMember, normalizeResolverTeam, AREA_BADGE, type Area } from "@/lib/team";
 import { ExportButton } from "@/components/dashboard/ExportButton";
@@ -21,7 +21,7 @@ function computeSLA(rows: CaseRow[]): SLAStat[] {
   const out: SLAStat[] = [];
   for (const p of ["P1", "P2", "P3"] as const) {
     const sla = SLA_MINUTES[p];
-    const subset = rows.filter((r) => (r.analysis?.priority || "").toUpperCase() === p);
+    const subset = rows.filter((r) => getPriority(r) === p);
     const measured = subset.filter((r) => r.first_response_minutes != null);
     const onTime = measured.filter((r) => (r.first_response_minutes as number) <= sla).length;
     const late = measured.length - onTime;
@@ -51,7 +51,7 @@ function pctColor(pct: number): string {
 
 export function SLATab({ rows, onRowClick, messagesMap }: { rows: CaseRow[]; onRowClick: (r: CaseRow) => void; messagesMap?: Record<number, Message[]> }) {
   const stats = useMemo(() => computeSLA(rows), [rows]);
-  const measured = useMemo(() => rows.filter((r) => r.first_response_minutes != null && r.analysis?.priority), [rows]);
+  const measured = useMemo(() => rows.filter((r) => r.first_response_minutes != null && getPriority(r)), [rows]);
 
   return (
     <div className="space-y-6">

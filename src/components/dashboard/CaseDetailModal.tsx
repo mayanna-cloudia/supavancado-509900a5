@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Sparkles, Loader2, X } from "lucide-react";
 import type { CaseRow, Message } from "@/lib/supabase";
 import { ANALYZE_FN_URL, SUPABASE_ANON } from "@/lib/supabase";
-import { fmtDate, fmtDuration, priorityBadgeClass, diffMinutes, fmtFirstResponse, isWithinSLA } from "@/lib/format";
+import { fmtDate, fmtDuration, priorityBadgeClass, diffMinutes, fmtFirstResponse, isWithinSLA, getPriority } from "@/lib/format";
 import { lookupMember, AREA_BADGE, AREA_LABEL, type Area } from "@/lib/team";
 import { cn } from "@/lib/utils";
 
@@ -51,6 +51,7 @@ export function CaseDetailModal({
   if (!row) return null;
   const a = row.analysis;
   const resolved = !!a?.resolved;
+  const priority = getPriority(row);
   const resolverInfo = a?.resolver_name ? lookupMember(a.resolver_name) : null;
 
   const reanalyze = async () => {
@@ -91,9 +92,9 @@ export function CaseDetailModal({
                 <span className="px-2 py-0.5 rounded-md bg-surface border border-border font-mono text-xs text-foreground/90">
                   IDCLINIC: {row.idclinic || "—"}
                 </span>
-                {a?.priority && (
-                  <span className={cn("px-2 py-0.5 rounded-md text-xs font-semibold border", priorityBadgeClass(a.priority))}>
-                    {a.priority.toUpperCase()}
+                {priority && (
+                  <span className={cn("px-2 py-0.5 rounded-md text-xs font-semibold border", priorityBadgeClass(priority))}>
+                    {priority}
                   </span>
                 )}
                 {a?.category && (
@@ -140,7 +141,7 @@ export function CaseDetailModal({
               value={fmtFirstResponse(meta?.firstResp ?? null)}
               valueClassName={
                 (() => {
-                  const within = isWithinSLA(meta?.firstResp ?? null, a?.priority);
+                  const within = isWithinSLA(meta?.firstResp ?? null, priority);
                   if (within === null) return undefined;
                   return within ? "text-[var(--brand-green)]" : "text-[var(--brand-red)]";
                 })()
