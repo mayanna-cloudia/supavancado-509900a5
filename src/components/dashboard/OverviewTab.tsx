@@ -40,7 +40,7 @@ const tooltipStyle = {
 };
 
 export function OverviewTab({
-  rows,
+  rows: allRows,
   messagesMap = {},
   onRowClick,
 }: {
