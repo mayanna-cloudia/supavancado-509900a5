@@ -317,10 +317,11 @@ export function FiltersBar({
 function CaseCard({ r, onClick }: { r: CaseRow; onClick: () => void }) {
   const a = r.analysis;
   const resolved = !!a?.resolved;
+  const priority = getPriority(r);
   const team = a ? (normalizeResolverTeam(a.resolver_team) || lookupMember(a.resolver_name).area) : null;
   const resolverDisplay = a?.resolver_name ? lookupMember(a.resolver_name).name : "—";
   const fr = r.first_response_minutes ?? null;
-  const ok = isWithinSLA(fr, a?.priority);
+  const ok = isWithinSLA(fr, priority);
   const frColor = ok === true ? "var(--brand-green)" : ok === false ? "var(--brand-red)" : undefined;
 
   return (
@@ -331,9 +332,9 @@ function CaseCard({ r, onClick }: { r: CaseRow; onClick: () => void }) {
       <div className="flex items-start justify-between gap-2 mb-2">
         <span className="font-mono text-[11px] text-muted-foreground">{r.idclinic || "—"}</span>
         <div className="flex items-center gap-1.5 shrink-0">
-          {a?.priority && (
-            <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-semibold border", priorityBadgeClass(a.priority))}>
-              {a.priority.toUpperCase()}
+          {priority && (
+            <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-semibold border", priorityBadgeClass(priority))}>
+              {priority}
             </span>
           )}
           <span className={cn(
