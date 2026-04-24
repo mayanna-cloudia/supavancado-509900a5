@@ -4,7 +4,7 @@ import {
   PieChart, Pie, Cell, BarChart, Bar, Legend,
 } from "recharts";
 import type { CaseRow, Message } from "@/lib/supabase";
-import { fmtDuration, weekKey, weekLabel } from "@/lib/format";
+import { fmtDuration, weekKey, weekLabel, getPriority } from "@/lib/format";
 import { KpiCard } from "./KpiCard";
 import { WaitingAlertBanner } from "./WaitingAlertBanner";
 import {
@@ -90,7 +90,7 @@ export function OverviewTab({
   const byPriority = useMemo(() => {
     const map: Record<string, number> = { P1: 0, P2: 0, P3: 0 };
     for (const r of rows) {
-      const p = (r.analysis?.priority || "").toUpperCase();
+      const p = getPriority(r);
       if (p === "P1" || p === "P2" || p === "P3") map[p]++;
     }
     return [
