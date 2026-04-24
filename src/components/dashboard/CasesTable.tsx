@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import type { CaseRow } from "@/lib/supabase";
-import { priorityBadgeClass, fmtFirstResponse, isWithinSLA } from "@/lib/format";
+import { priorityBadgeClass, fmtFirstResponse, isWithinSLA, getPriority } from "@/lib/format";
 import { lookupMember, normalizeResolverTeam, AREA_BADGE, AREA_LABEL, type Area } from "@/lib/team";
 
 export type Filters = {
@@ -42,7 +42,7 @@ export function applyFilters(rows: CaseRow[], f: Filters): CaseRow[] {
       if (new Date(r.opened_at) > end) return false;
     }
     if (f.idclinic !== "all" && r.idclinic !== f.idclinic) return false;
-    if (f.priority !== "all" && (r.analysis?.priority || "").toUpperCase() !== f.priority) return false;
+    if (f.priority !== "all" && getPriority(r) !== f.priority) return false;
     if (f.status !== "all") {
       const resolved = !!r.analysis?.resolved;
       if (f.status === "resolved" && !resolved) return false;
