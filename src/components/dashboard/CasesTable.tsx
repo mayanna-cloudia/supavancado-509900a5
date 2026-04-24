@@ -269,7 +269,7 @@ export function FiltersBar({
     <>
       {/* Desktop / tablet — inline */}
       <div className="hidden md:block glass-card glass-card-static p-4">
-        <FiltersBody rows={rows} filters={filters} update={update} clear={clear} />
+        <FiltersBody rows={rows} filters={filters} update={update} clear={clear} activeCount={count} />
       </div>
 
       {/* Mobile — quick search + sheet */}
@@ -300,7 +300,7 @@ export function FiltersBar({
               <SheetTitle className="font-display">Filtros</SheetTitle>
             </SheetHeader>
             <div className="mt-4">
-              <FiltersBody rows={rows} filters={filters} update={update} clear={clear} />
+              <FiltersBody rows={rows} filters={filters} update={update} clear={clear} activeCount={count} />
             </div>
             <div className="sticky bottom-0 left-0 right-0 mt-6 pt-4 bg-card border-t border-border">
               <Button onClick={() => setOpen(false)} className="w-full bg-gradient-to-r from-[var(--brand-blue)] to-[var(--brand-purple)] text-background hover:opacity-90 border-0">
