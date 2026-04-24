@@ -138,6 +138,11 @@ export function OverviewTab({
 
   return (
     <div className="space-y-6">
+      <OverviewDateFilter
+        preset={preset}
+        range={range}
+        onChange={(p, r) => { setPreset(p); setRange(r); }}
+      />
       <WaitingAlertBanner rows={rows} messagesMap={messagesMap} onRowClick={onRowClick} />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
