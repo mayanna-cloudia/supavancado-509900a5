@@ -20,6 +20,7 @@ export type Filters = {
   status: "all" | "open" | "resolved";
   category: string;
   resolver: string;
+  area: "all" | "SuporteN2" | "Chatbot" | "AM" | "unassigned";
   search: string;
 };
 
@@ -29,6 +30,7 @@ export const DEFAULT_FILTERS: Filters = {
   status: "all",
   category: "all",
   resolver: "all",
+  area: "all",
   search: "",
 };
 
@@ -48,6 +50,16 @@ export function applyFilters(rows: CaseRow[], f: Filters): CaseRow[] {
     }
     if (f.category !== "all" && (r.analysis?.category || "—") !== f.category) return false;
     if (f.resolver !== "all" && (r.analysis?.resolver_name || "") !== f.resolver) return false;
+    if (f.area !== "all") {
+      const team = r.analysis
+        ? (normalizeResolverTeam(r.analysis.resolver_team) || lookupMember(r.analysis.resolver_name).area)
+        : null;
+      if (f.area === "unassigned") {
+        if (team) return false;
+      } else if (team !== f.area) {
+        return false;
+      }
+    }
     if (f.search.trim()) {
       const q = f.search.toLowerCase();
       const blob = [
@@ -66,6 +78,7 @@ function activeFilterCount(f: Filters): number {
   if (f.idclinic !== "all") n++;
   if (f.category !== "all") n++;
   if (f.resolver !== "all") n++;
+  if (f.area !== "all") n++;
   if (f.priority !== "all") n++;
   if (f.status !== "all") n++;
   if (f.search.trim()) n++;
