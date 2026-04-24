@@ -48,6 +48,11 @@ export function OverviewTab({
   messagesMap?: Record<number, Message[]>;
   onRowClick?: (row: CaseRow) => void;
 }) {
+  const [preset, setPreset] = useState<PresetKey>(DEFAULT_PRESET);
+  const [range, setRange] = useState<DateRange>(() => rangeForPreset(DEFAULT_PRESET));
+
+  const rows = useMemo(() => filterByDateRange(allRows, range), [allRows, range]);
+
   const stats = useMemo(() => {
     const total = rows.length;
     const resolved = rows.filter((r) => r.analysis?.resolved).length;
