@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid,
   PieChart, Pie, Cell, BarChart, Bar, Legend,
@@ -7,6 +7,10 @@ import type { CaseRow, Message } from "@/lib/supabase";
 import { fmtDuration, weekKey, weekLabel } from "@/lib/format";
 import { KpiCard } from "./KpiCard";
 import { WaitingAlertBanner } from "./WaitingAlertBanner";
+import {
+  OverviewDateFilter, filterByDateRange, rangeForPreset,
+  DEFAULT_PRESET, type DateRange, type PresetKey,
+} from "./OverviewDateFilter";
 import { lookupMember, normalizeResolverTeam, AREA_COLOR_HEX, AREA_LABEL, type Area } from "@/lib/team";
 
 const CHART_PALETTE = ["#256EFF", "#715AFF", "#10b981", "#f97316", "#f59e0b", "#ef4444", "#06b6d4", "#a3e635"];
@@ -36,7 +40,7 @@ const tooltipStyle = {
 };
 
 export function OverviewTab({
-  rows,
+  rows: allRows,
   messagesMap = {},
   onRowClick,
 }: {
@@ -44,6 +48,11 @@ export function OverviewTab({
   messagesMap?: Record<number, Message[]>;
   onRowClick?: (row: CaseRow) => void;
 }) {
+  const [preset, setPreset] = useState<PresetKey>(DEFAULT_PRESET);
+  const [range, setRange] = useState<DateRange>(() => rangeForPreset(DEFAULT_PRESET));
+
+  const rows = useMemo(() => filterByDateRange(allRows, range), [allRows, range]);
+
   const stats = useMemo(() => {
     const total = rows.length;
     const resolved = rows.filter((r) => r.analysis?.resolved).length;
@@ -129,6 +138,11 @@ export function OverviewTab({
 
   return (
     <div className="space-y-6">
+      <OverviewDateFilter
+        preset={preset}
+        range={range}
+        onChange={(p, r) => { setPreset(p); setRange(r); }}
+      />
       <WaitingAlertBanner rows={rows} messagesMap={messagesMap} onRowClick={onRowClick} />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

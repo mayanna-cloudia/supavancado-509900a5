@@ -20,6 +20,7 @@ export type Filters = {
   status: "all" | "open" | "resolved";
   category: string;
   resolver: string;
+  area: "all" | "SuporteN2" | "Chatbot" | "AM" | "unassigned";
   search: string;
 };
 
@@ -29,6 +30,7 @@ export const DEFAULT_FILTERS: Filters = {
   status: "all",
   category: "all",
   resolver: "all",
+  area: "all",
   search: "",
 };
 
@@ -48,6 +50,16 @@ export function applyFilters(rows: CaseRow[], f: Filters): CaseRow[] {
     }
     if (f.category !== "all" && (r.analysis?.category || "—") !== f.category) return false;
     if (f.resolver !== "all" && (r.analysis?.resolver_name || "") !== f.resolver) return false;
+    if (f.area !== "all") {
+      const team = r.analysis
+        ? (normalizeResolverTeam(r.analysis.resolver_team) || lookupMember(r.analysis.resolver_name).area)
+        : null;
+      if (f.area === "unassigned") {
+        if (team) return false;
+      } else if (team !== f.area) {
+        return false;
+      }
+    }
     if (f.search.trim()) {
       const q = f.search.toLowerCase();
       const blob = [
@@ -66,6 +78,7 @@ function activeFilterCount(f: Filters): number {
   if (f.idclinic !== "all") n++;
   if (f.category !== "all") n++;
   if (f.resolver !== "all") n++;
+  if (f.area !== "all") n++;
   if (f.priority !== "all") n++;
   if (f.status !== "all") n++;
   if (f.search.trim()) n++;
@@ -73,12 +86,13 @@ function activeFilterCount(f: Filters): number {
 }
 
 function FiltersBody({
-  rows, filters, update, clear,
+  rows, filters, update, clear, activeCount,
 }: {
   rows: CaseRow[];
   filters: Filters;
   update: (p: Partial<Filters>) => void;
   clear: () => void;
+  activeCount: number;
 }) {
   const clinics = useMemo(() => {
     const set = new Set<string>();
@@ -143,7 +157,7 @@ function FiltersBody({
         </Select>
 
         <Select value={filters.resolver} onValueChange={(v) => update({ resolver: v })}>
-          <SelectTrigger className="h-8 w-full sm:w-[190px] bg-surface border-border text-xs">
+          <SelectTrigger aria-label="Filtrar por quem resolveu" className="h-8 w-full sm:w-[190px] bg-surface border-border text-xs">
             <SelectValue placeholder="Quem resolveu" />
           </SelectTrigger>
           <SelectContent className="bg-card border-border max-h-[300px]">
@@ -154,19 +168,43 @@ function FiltersBody({
           </SelectContent>
         </Select>
 
+        <Select value={filters.area} onValueChange={(v) => update({ area: v as Filters["area"] })}>
+          <SelectTrigger aria-label="Filtrar por área resolvedora" className="h-8 w-full sm:w-[170px] bg-surface border-border text-xs">
+            <SelectValue placeholder="Área" />
+          </SelectTrigger>
+          <SelectContent className="bg-card border-border">
+            <SelectItem value="all">Todas as áreas</SelectItem>
+            <SelectItem value="SuporteN2">Suporte N2</SelectItem>
+            <SelectItem value="Chatbot">Chatbot</SelectItem>
+            <SelectItem value="AM">AM</SelectItem>
+            <SelectItem value="unassigned">Não atribuído</SelectItem>
+          </SelectContent>
+        </Select>
+
         <div className="relative flex-1 min-w-[180px]">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <input
             placeholder="Buscar título, IDCLINIC, resumo…"
             value={filters.search}
             onChange={(e) => update({ search: e.target.value })}
+            aria-label="Buscar casos"
             className="h-8 w-full rounded-md bg-surface border border-border pl-8 pr-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-[var(--brand-blue)] transition-colors"
           />
         </div>
 
-        <Button variant="ghost" size="sm" onClick={clear} className="text-xs text-muted-foreground hover:text-foreground">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={clear}
+          className={cn(
+            "text-xs transition-colors",
+            activeCount > 0
+              ? "text-[var(--brand-blue)] border border-[var(--brand-blue)] hover:bg-[var(--brand-blue)]/10"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
           <X className="h-3.5 w-3.5" />
-          Limpar
+          {activeCount > 0 ? `Limpar (${activeCount})` : "Limpar"}
         </Button>
       </div>
 
@@ -231,7 +269,7 @@ export function FiltersBar({
     <>
       {/* Desktop / tablet — inline */}
       <div className="hidden md:block glass-card glass-card-static p-4">
-        <FiltersBody rows={rows} filters={filters} update={update} clear={clear} />
+        <FiltersBody rows={rows} filters={filters} update={update} clear={clear} activeCount={count} />
       </div>
 
       {/* Mobile — quick search + sheet */}
@@ -262,7 +300,7 @@ export function FiltersBar({
               <SheetTitle className="font-display">Filtros</SheetTitle>
             </SheetHeader>
             <div className="mt-4">
-              <FiltersBody rows={rows} filters={filters} update={update} clear={clear} />
+              <FiltersBody rows={rows} filters={filters} update={update} clear={clear} activeCount={count} />
             </div>
             <div className="sticky bottom-0 left-0 right-0 mt-6 pt-4 bg-card border-t border-border">
               <Button onClick={() => setOpen(false)} className="w-full bg-gradient-to-r from-[var(--brand-blue)] to-[var(--brand-purple)] text-background hover:opacity-90 border-0">
