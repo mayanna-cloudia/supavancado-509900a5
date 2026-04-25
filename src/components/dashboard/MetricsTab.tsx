@@ -85,22 +85,95 @@ function RecurrenceSection({ rows, onRowClick }: { rows: CaseRow[]; onRowClick: 
   const filtered = useMemo(() => filterByDateRange(rows, range), [rows, range]);
 
   const groups = useMemo(() => {
-    const map = new Map<string, { label: string | null; list: CaseRow[] }>();
+    // Tokeniza fingerprint em conjunto de palavras significativas
+    const STOP_WORDS = new Set([
+      "de", "do", "da", "no", "na", "em", "com", "para", "por", "ou",
+      "a", "o", "e", "as", "os", "um", "uma", "ao", "aos", "que"
+    ]);
+    const tokenize = (fp: string): Set<string> => {
+      return new Set(
+        fp.toLowerCase()
+          .split(/[-_\s]+/)
+          .filter((t) => t.length > 2 && !STOP_WORDS.has(t))
+      );
+    };
+    // Jaccard similarity: |A ∩ B| / |A ∪ B|
+    const jaccard = (a: Set<string>, b: Set<string>): number => {
+      if (a.size === 0 || b.size === 0) return 0;
+      let intersection = 0;
+      for (const t of a) if (b.has(t)) intersection++;
+      const union = a.size + b.size - intersection;
+      return union === 0 ? 0 : intersection / union;
+    };
+    const SIMILARITY_THRESHOLD = 0.55; // 55% de overlap considera mesmo problema
+
+    type Bucket = {
+      tokens: Set<string>;
+      fingerprints: Set<string>;
+      label: string | null;
+      list: CaseRow[];
+      labelCounts: Map<string, number>; // votação para escolher o melhor label
+    };
+
+    const buckets: Bucket[] = [];
+
     for (const r of filtered) {
       const fp = r.analysis?.problem_fingerprint;
       if (!fp) continue;
-      if (!map.has(fp)) {
-        map.set(fp, { label: r.analysis?.problem_label || null, list: [] });
+      const tokens = tokenize(fp);
+      if (tokens.size === 0) continue;
+      const label = r.analysis?.problem_label || null;
+
+      // Tenta encaixar em um bucket existente
+      let bestBucket: Bucket | null = null;
+      let bestScore = 0;
+      for (const b of buckets) {
+        const score = jaccard(tokens, b.tokens);
+        if (score > bestScore && score >= SIMILARITY_THRESHOLD) {
+          bestScore = score;
+          bestBucket = b;
+        }
       }
-      const entry = map.get(fp)!;
-      entry.list.push(r);
-      // Usa o primeiro label encontrado para esse fingerprint
-      if (!entry.label && r.analysis?.problem_label) {
-        entry.label = r.analysis.problem_label;
+
+      if (bestBucket) {
+        bestBucket.list.push(r);
+        bestBucket.fingerprints.add(fp);
+        // expande o conjunto de tokens para capturar mais variações no futuro
+        for (const t of tokens) bestBucket.tokens.add(t);
+        if (label) {
+          bestBucket.labelCounts.set(label, (bestBucket.labelCounts.get(label) || 0) + 1);
+          // Atualiza o label canonical (o mais frequente)
+          let bestLabel = bestBucket.label;
+          let bestLabelCount = bestLabel ? bestBucket.labelCounts.get(bestLabel) || 0 : 0;
+          for (const [l, c] of bestBucket.labelCounts) {
+            if (c > bestLabelCount) {
+              bestLabel = l;
+              bestLabelCount = c;
+            }
+          }
+          bestBucket.label = bestLabel;
+        }
+      } else {
+        const labelCounts = new Map<string, number>();
+        if (label) labelCounts.set(label, 1);
+        buckets.push({
+          tokens: new Set(tokens),
+          fingerprints: new Set([fp]),
+          label,
+          list: [r],
+          labelCounts,
+        });
       }
     }
-    return Array.from(map.entries())
-      .map(([fp, { label, list }]) => ({ fp, label, list, count: list.length }))
+
+    return buckets
+      .map((b) => ({
+        fp: Array.from(b.fingerprints)[0], // representante
+        label: b.label,
+        list: b.list,
+        count: b.list.length,
+        variants: b.fingerprints.size, // quantos fingerprints diferentes foram fundidos
+      }))
       .filter((g) => g.count >= 2)
       .sort((a, b) => b.count - a.count)
       .slice(0, 10);
@@ -115,7 +188,7 @@ function RecurrenceSection({ rows, onRowClick }: { rows: CaseRow[]; onRowClick: 
     <MetricSection
       icon={AlertTriangle}
       title="Reincidência de Problemas"
-      subtitle="Top 10 fingerprints mais reportados (≥ 2 ocorrências)"
+      subtitle="Top 10 problemas mais reportados (variações similares são agrupadas automaticamente)"
       accent="var(--brand-orange)"
       filter={<OverviewDateFilter preset={preset} range={range} onChange={onChange} />}
     >
@@ -145,6 +218,19 @@ function RecurrenceSection({ rows, onRowClick }: { rows: CaseRow[]; onRowClick: 
                       {sample?.category && (
                         <span className="text-[10px] uppercase tracking-wider text-muted-foreground bg-surface px-1.5 py-0.5 rounded">
                           {sample.category}
+                        </span>
+                      )}
+                      {g.variants > 1 && (
+                        <span
+                          className="text-[10px] tracking-wider px-1.5 py-0.5 rounded"
+                          style={{
+                            background: "color-mix(in oklab, var(--brand-blue) 14%, transparent)",
+                            color: "var(--brand-blue)",
+                            border: "1px solid color-mix(in oklab, var(--brand-blue) 30%, transparent)",
+                          }}
+                          title={`${g.variants} variações de descrição agrupadas como o mesmo problema`}
+                        >
+                          {g.variants} variações
                         </span>
                       )}
                     </div>
