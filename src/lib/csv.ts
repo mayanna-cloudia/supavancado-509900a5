@@ -39,11 +39,16 @@ function esc(v: unknown): string {
   return s;
 }
 
+// Guild ID do servidor Cloudia no Discord
+const DISCORD_GUILD_ID = "763464035911073804";
+
 function discordUrl(r: CaseRow): string {
-  // Best-effort: if thread_id looks like a discord snowflake (numeric) build a public link
   const tid = r.thread_id != null ? String(r.thread_id) : "";
   if (!tid) return "";
-  if (/^\d{15,}$/.test(tid)) return `https://discord.com/channels/${tid}`;
+  // Snowflakes do Discord têm pelo menos 15 dígitos
+  if (/^\d{15,}$/.test(tid)) {
+    return `https://discord.com/channels/${DISCORD_GUILD_ID}/${tid}`;
+  }
   return "";
 }
 
