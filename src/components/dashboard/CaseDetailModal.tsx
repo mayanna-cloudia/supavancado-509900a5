@@ -1,12 +1,15 @@
 import { useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Sparkles, Loader2, X } from "lucide-react";
+import { Sparkles, Loader2, X, ExternalLink } from "lucide-react";
 import type { CaseRow, Message } from "@/lib/supabase";
 import { ANALYZE_FN_URL, SUPABASE_ANON } from "@/lib/supabase";
 import { fmtDate, fmtDuration, priorityBadgeClass, diffMinutes, fmtFirstResponse, isWithinSLA, getPriority } from "@/lib/format";
 import { lookupMember, AREA_BADGE, AREA_LABEL, type Area } from "@/lib/team";
 import { cn } from "@/lib/utils";
+
+// Guild ID do servidor Cloudia no Discord
+const DISCORD_GUILD_ID = "763464035911073804";
 
 export function CaseDetailModal({
   row, messages, onClose, onReanalyzed,
@@ -197,28 +200,46 @@ export function CaseDetailModal({
             </div>
           </section>
 
-          {/* Reanalisar */}
+          {/* Footer com ações */}
           <div className="flex items-center justify-between gap-4 pt-2 border-t border-border">
             <div className="text-xs text-muted-foreground">
               {a?.analyzed_at && <>Última análise: {fmtDate(a.analyzed_at)}</>}
             </div>
-            <div className="flex flex-col items-end gap-1">
-              <Button
-                onClick={reanalyze}
-                disabled={busy}
-                className="bg-[var(--brand-blue)] text-white hover:bg-[var(--brand-blue)]/90 border-0"
-              >
-                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                Reanalisar com IA
-              </Button>
-              {reanalyzeMsg && (
-                <span className={cn(
-                  "text-[11px]",
-                  reanalyzeMsg.kind === "ok" ? "text-[var(--brand-green)]" : "text-[var(--brand-red)]"
-                )}>
-                  {reanalyzeMsg.text}
-                </span>
+            <div className="flex items-center gap-2">
+              {row.thread_id && /^\d{15,}$/.test(String(row.thread_id)) && (
+                <Button
+                  asChild
+                  variant="outline"
+                  className="border-border bg-transparent hover:bg-surface text-foreground"
+                >
+                  <a
+                    href={`https://discord.com/channels/${DISCORD_GUILD_ID}/${row.thread_id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    Abrir no Discord
+                  </a>
+                </Button>
               )}
+              <div className="flex flex-col items-end gap-1">
+                <Button
+                  onClick={reanalyze}
+                  disabled={busy}
+                  className="bg-[var(--brand-blue)] text-white hover:bg-[var(--brand-blue)]/90 border-0"
+                >
+                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                  Reanalisar com IA
+                </Button>
+                {reanalyzeMsg && (
+                  <span className={cn(
+                    "text-[11px]",
+                    reanalyzeMsg.kind === "ok" ? "text-[var(--brand-green)]" : "text-[var(--brand-red)]"
+                  )}>
+                    {reanalyzeMsg.text}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         </div>
