@@ -2,11 +2,21 @@ import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, Clock } from "lucide-react";
 import type { CaseRow, Message } from "@/lib/supabase";
 import { getPriority, SLA_MINUTES } from "@/lib/format";
+import { lookupMember, RESOLUTIVE_AREAS } from "@/lib/team";
 
 function getLastActivity(row: CaseRow, messages?: Message[]): string | null {
-  if (row.last_activity_at) return row.last_activity_at;
   if (messages && messages.length) return messages[messages.length - 1].sent_at;
+  if (row.last_activity_at) return row.last_activity_at;
   return row.opened_at || null;
+}
+
+// Verifica se a última mensagem da thread é de alguém da equipe técnica.
+// Se for, o caso está aguardando resposta DO solicitante, não da equipe.
+function isAwaitingRequester(messages?: Message[]): boolean {
+  if (!messages || messages.length === 0) return false;
+  const last = messages[messages.length - 1];
+  const member = lookupMember(last.author_username);
+  return !!member.area && RESOLUTIVE_AREAS.includes(member.area);
 }
 
 function fmtWaiting(minutes: number): string {
@@ -108,7 +118,10 @@ export function WaitingAlertBanner({ rows, messagesMap, onRowClick }: Props) {
 
     const enriched: EnrichedRow[] = open
       .map((r) => {
-        const last = getLastActivity(r, messagesMap[r.id]);
+        const msgs = messagesMap[r.id];
+        // Se a última mensagem é da equipe técnica, está aguardando o solicitante — não é problema da equipe
+        if (isAwaitingRequester(msgs)) return null;
+        const last = getLastActivity(r, msgs);
         if (!last) return null;
         const minutes = (now - new Date(last).getTime()) / 60000;
         if (!isFinite(minutes) || minutes < 0) return null;

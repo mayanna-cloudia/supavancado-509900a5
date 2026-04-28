@@ -3,7 +3,7 @@ import { ChevronDown, ChevronRight, AlertTriangle, Clock, Trophy, CheckCircle2 }
 import type { CaseRow, Message } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import { fmtDuration, fmtDate } from "@/lib/format";
-import { lookupMember, normalizeResolverTeam, AREA_BADGE, type Area } from "@/lib/team";
+import { lookupMember, normalizeResolverTeam, AREA_BADGE, RESOLUTIVE_AREAS, type Area } from "@/lib/team";
 import { ExportButton } from "@/components/dashboard/ExportButton";
 import {
   OverviewDateFilter,
@@ -19,6 +19,15 @@ function isOpen(r: CaseRow): boolean {
   if (s === "aberto") return true;
   if (s === "resolvido" || s === "fechado" || s === "closed") return false;
   return !r.analysis?.resolved && !r.closed_at;
+}
+
+// Verifica se a última mensagem é da equipe técnica.
+// Se for, o caso está aguardando resposta DO solicitante.
+function isAwaitingRequester(msgs: Message[] | undefined): boolean {
+  if (!msgs || msgs.length === 0) return false;
+  const last = msgs[msgs.length - 1];
+  const member = lookupMember(last.author_username);
+  return !!member.area && RESOLUTIVE_AREAS.includes(member.area);
 }
 
 function lastActivityIso(r: CaseRow, msgs: Record<number, Message[]>): string | null {
@@ -325,6 +334,7 @@ function WaitingSection({
   const list = useMemo(() => {
     return rows
       .filter(isOpen)
+      .filter((r) => !isAwaitingRequester(messagesMap[r.id]))
       .map((r) => {
         const lastIso = lastActivityIso(r, messagesMap);
         const lastTs = lastIso ? new Date(lastIso).getTime() : null;
