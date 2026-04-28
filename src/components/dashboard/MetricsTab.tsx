@@ -576,9 +576,15 @@ export function MetricsTab({
         <FilteredRankingTable
           icon={Trophy}
           title="Quem responde primeiro e resolve os casos rápido"
-          subtitle="Ranking de primeiro atendimento"
+          subtitle="Casos onde a mesma pessoa fez o primeiro atendimento E resolveu"
           rows={rows}
-          pick={(a) => ({ name: a.first_responder_name, team: a.first_responder_team })}
+          pick={(a) => {
+            // Só conta quando: respondeu primeiro + resolveu + é a mesma pessoa
+            if (!a.resolved) return null;
+            if (!a.first_responder_name || !a.resolver_name) return null;
+            if (a.first_responder_name !== a.resolver_name) return null;
+            return { name: a.first_responder_name, team: a.first_responder_team };
+          }}
           accent="var(--brand-blue)"
         />
         <FilteredRankingTable
