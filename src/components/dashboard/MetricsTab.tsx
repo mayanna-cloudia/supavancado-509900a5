@@ -350,7 +350,7 @@ function WaitingSection({
       .map((r) => {
         const msgs = messagesMap[r.id];
         const tag = getWaitingFor(r, msgs);
-        const lastIso = lastActivityIso(r, msgs);
+        const lastIso = lastActivityIso(r, messagesMap);
         const lastTs = lastIso ? new Date(lastIso).getTime() : null;
         const waitingMin = lastTs ? Math.max(0, (now - lastTs) / 60000) : null;
         return { row: r, tag, waitingMin, lastIso };
@@ -551,128 +551,6 @@ function WaitingSection({
                         }}
                       >
                         <span className="h-1.5 w-1.5 rounded-full pulse-dot" style={{ background: color }} />
-                        {fmtDuration(waitingMin as number)}
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </MetricSection>
-  );
-}: {
-  rows: CaseRow[];
-  messagesMap: Record<number, Message[]>;
-  onRowClick: (r: CaseRow) => void;
-}) {
-  const now = Date.now();
-  const list = useMemo(() => {
-    return rows
-      .filter(isOpen)
-      .filter((r) => !isAwaitingRequester(messagesMap[r.id]))
-      .map((r) => {
-        const lastIso = lastActivityIso(r, messagesMap);
-        const lastTs = lastIso ? new Date(lastIso).getTime() : null;
-        const waitingMin = lastTs ? Math.max(0, (now - lastTs) / 60000) : null;
-        return { row: r, waitingMin, lastIso };
-      })
-      .filter((x) => x.waitingMin != null)
-      .sort((a, b) => (b.waitingMin as number) - (a.waitingMin as number))
-      .slice(0, 100);
-  }, [rows, messagesMap, now]);
-
-  const colorFor = (m: number): string => {
-    if (m > 60) return "var(--brand-red)";
-    if (m > 30) return "var(--brand-yellow)";
-    return "var(--brand-green)";
-  };
-
-  return (
-    <MetricSection
-      icon={Clock}
-      title="Tempo Aguardando Atendimento"
-      subtitle="Casos em aberto ordenados pelo tempo desde a última mensagem"
-      accent="var(--brand-yellow)"
-    >
-      {list.length === 0 ? (
-        <div className="px-5 py-10 text-center text-sm text-muted-foreground">
-          Nenhum caso em aberto aguardando atendimento.
-        </div>
-      ) : (
-        <div className="overflow-x-auto scrollbar-thin max-h-[480px]">
-          {/* Mobile cards */}
-          <div className="md:hidden divide-y divide-border/40">
-            {list.map(({ row: r, waitingMin, lastIso }) => {
-              const color = colorFor(waitingMin as number);
-              return (
-                <button
-                  key={r.id}
-                  onClick={() => onRowClick(r)}
-                  className="w-full text-left px-4 py-3 hover:bg-surface/40 transition-colors"
-                >
-                  <div className="flex items-start justify-between gap-2 mb-1">
-                    <span className="font-mono text-[11px] text-muted-foreground">{r.idclinic || "—"}</span>
-                    <span
-                      className="inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-semibold border tabular-nums shrink-0"
-                      style={{
-                        color,
-                        background: `color-mix(in oklab, ${color} 14%, transparent)`,
-                        borderColor: `color-mix(in oklab, ${color} 45%, transparent)`,
-                      }}
-                    >
-                      <span className="h-1.5 w-1.5 rounded-full pulse-dot" style={{ background: color }} />
-                      {fmtDuration(waitingMin as number)}
-                    </span>
-                  </div>
-                  <p className="text-sm text-foreground line-clamp-2 leading-snug">{r.thread_title || "(sem título)"}</p>
-                  <p className="text-[11px] text-muted-foreground tabular-nums mt-1">{fmtDate(lastIso)}</p>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Desktop table */}
-          <table className="hidden md:table w-full text-sm">
-            <thead className="sticky top-0 bg-card border-b border-border">
-              <tr className="text-left text-[11px] uppercase tracking-wider text-muted-foreground">
-                <th className="px-4 py-2 font-medium">IDCLINIC</th>
-                <th className="px-4 py-2 font-medium">Título</th>
-                <th className="px-3 py-2 font-medium">Última atividade</th>
-                <th className="px-3 py-2 font-medium text-right">Aguardando</th>
-              </tr>
-            </thead>
-            <tbody>
-              {list.map(({ row: r, waitingMin, lastIso }) => {
-                const color = colorFor(waitingMin as number);
-                return (
-                  <tr
-                    key={r.id}
-                    onClick={() => onRowClick(r)}
-                    className="border-b border-border/30 hover:bg-surface/40 cursor-pointer transition-colors duration-150"
-                  >
-                    <td className="px-4 py-2 font-mono text-xs text-foreground/90">{r.idclinic || "—"}</td>
-                    <td className="px-4 py-2 max-w-[420px] truncate text-foreground/90" title={r.thread_title || ""}>
-                      {r.thread_title || "(sem título)"}
-                    </td>
-                    <td className="px-3 py-2 text-xs text-muted-foreground tabular-nums">
-                      {fmtDate(lastIso)}
-                    </td>
-                    <td className="px-3 py-2 text-right">
-                      <span
-                        className="inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-semibold border tabular-nums"
-                        style={{
-                          color,
-                          background: `color-mix(in oklab, ${color} 14%, transparent)`,
-                          borderColor: `color-mix(in oklab, ${color} 45%, transparent)`,
-                        }}
-                      >
-                        <span
-                          className="h-1.5 w-1.5 rounded-full pulse-dot"
-                          style={{ background: color }}
-                        />
                         {fmtDuration(waitingMin as number)}
                       </span>
                     </td>
