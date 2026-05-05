@@ -21,13 +21,23 @@ function isOpen(r: CaseRow): boolean {
   return !r.analysis?.resolved && !r.closed_at;
 }
 
-// Verifica se a última mensagem é da equipe técnica.
-// Se for, o caso está aguardando resposta DO solicitante.
-function isAwaitingRequester(msgs: Message[] | undefined): boolean {
-  if (!msgs || msgs.length === 0) return false;
+// Resolve a tag waiting_for de um caso (com fallback se não tiver análise)
+type WaitingTag = "team_n2" | "team_chatbot" | "team_am" | "client" | "requester" | "none";
+
+function getWaitingFor(r: CaseRow, msgs: Message[] | undefined): WaitingTag {
+  const tag = r.analysis?.waiting_for;
+  const validTags: WaitingTag[] = ["team_n2", "team_chatbot", "team_am", "client", "requester", "none"];
+  if (tag && validTags.includes(tag as WaitingTag)) {
+    return tag as WaitingTag;
+  }
+  // Fallback: sem análise ainda. Olha quem mandou a última mensagem.
+  if (!msgs || msgs.length === 0) return "team_n2";
   const last = msgs[msgs.length - 1];
   const member = lookupMember(last.author_username);
-  return !!member.area && RESOLUTIVE_AREAS.includes(member.area);
+  if (member.area && RESOLUTIVE_AREAS.includes(member.area)) {
+    return "requester";
+  }
+  return "team_n2";
 }
 
 function lastActivityIso(r: CaseRow, msgs: Record<number, Message[]>): string | null {
@@ -325,6 +335,234 @@ function WaitingSection({
   rows,
   messagesMap,
   onRowClick,
+}: {
+  rows: CaseRow[];
+  messagesMap: Record<number, Message[]>;
+  onRowClick: (r: CaseRow) => void;
+}) {
+  const [filter, setFilter] = useState<WaitingTag | "all">("all");
+  const now = Date.now();
+
+  // Classifica todos os casos abertos
+  const allEnriched = useMemo(() => {
+    return rows
+      .filter(isOpen)
+      .map((r) => {
+        const msgs = messagesMap[r.id];
+        const tag = getWaitingFor(r, msgs);
+        const lastIso = lastActivityIso(r, msgs);
+        const lastTs = lastIso ? new Date(lastIso).getTime() : null;
+        const waitingMin = lastTs ? Math.max(0, (now - lastTs) / 60000) : null;
+        return { row: r, tag, waitingMin, lastIso };
+      })
+      .filter((x) => x.waitingMin != null);
+  }, [rows, messagesMap, now]);
+
+  const counts = useMemo(() => ({
+    all: allEnriched.length,
+    team_n2: allEnriched.filter((x) => x.tag === "team_n2").length,
+    team_chatbot: allEnriched.filter((x) => x.tag === "team_chatbot").length,
+    team_am: allEnriched.filter((x) => x.tag === "team_am").length,
+    client: allEnriched.filter((x) => x.tag === "client").length,
+    requester: allEnriched.filter((x) => x.tag === "requester").length,
+  }), [allEnriched]);
+
+  const list = useMemo(() => {
+    const filtered = filter === "all"
+      ? allEnriched
+      : allEnriched.filter((x) => x.tag === filter);
+    return filtered
+      .sort((a, b) => (b.waitingMin as number) - (a.waitingMin as number))
+      .slice(0, 100);
+  }, [allEnriched, filter]);
+
+  const colorFor = (m: number): string => {
+    if (m > 60) return "var(--brand-red)";
+    if (m > 30) return "var(--brand-yellow)";
+    return "var(--brand-green)";
+  };
+
+  const tagLabel = (tag: WaitingTag): string => {
+    if (tag === "team_n2") return "Aguardando N2";
+    if (tag === "team_chatbot") return "Aguardando Chatbot";
+    if (tag === "team_am") return "Aguardando AM";
+    if (tag === "client") return "Aguardando Cliente";
+    if (tag === "requester") return "Aguardando Retorno";
+    return "Sem dependência";
+  };
+
+  const tagColor = (tag: WaitingTag): string => {
+    if (tag === "team_n2") return "#256EFF";
+    if (tag === "team_chatbot") return "#715AFF";
+    if (tag === "team_am") return "#10b981";
+    if (tag === "client") return "var(--brand-blue)";
+    if (tag === "requester") return "var(--brand-yellow)";
+    return "var(--muted-foreground)";
+  };
+
+  type ChipKey = "all" | WaitingTag;
+  const chips: { key: ChipKey; label: string; count: number; color: string }[] = [
+    { key: "all", label: "Todos", count: counts.all, color: "var(--muted-foreground)" },
+    { key: "team_n2", label: "Aguardando N2", count: counts.team_n2, color: "#256EFF" },
+    { key: "team_chatbot", label: "Aguardando Chatbot", count: counts.team_chatbot, color: "#715AFF" },
+    { key: "team_am", label: "Aguardando AM", count: counts.team_am, color: "#10b981" },
+    { key: "client", label: "Aguardando Cliente", count: counts.client, color: "var(--brand-blue)" },
+    { key: "requester", label: "Aguardando Retorno", count: counts.requester, color: "var(--brand-yellow)" },
+  ];
+
+  const filterUI = (
+    <div className="flex flex-wrap gap-2">
+      {chips.map((c) => {
+        const active = filter === c.key;
+        return (
+          <button
+            key={c.key}
+            type="button"
+            onClick={() => setFilter(c.key)}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-md text-[11px] font-medium border transition-all duration-200",
+              active
+                ? "text-white border-transparent"
+                : "bg-transparent text-foreground/80 border-border hover:bg-surface",
+            )}
+            style={{
+              padding: "5px 10px",
+              background: active ? c.color : undefined,
+              borderColor: active ? c.color : undefined,
+            }}
+          >
+            {c.label}
+            <span
+              className={cn("rounded px-1 text-[10px] tabular-nums", active ? "bg-white/20" : "bg-surface")}
+            >
+              {c.count}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  return (
+    <MetricSection
+      icon={Clock}
+      title="Tempo Aguardando Atendimento"
+      subtitle="Casos em aberto agrupados pela dependência atual"
+      accent="var(--brand-yellow)"
+      filter={filterUI}
+    >
+      {list.length === 0 ? (
+        <div className="px-5 py-10 text-center text-sm text-muted-foreground">
+          Nenhum caso em aberto neste filtro.
+        </div>
+      ) : (
+        <div className="overflow-x-auto scrollbar-thin max-h-[480px]">
+          {/* Mobile cards */}
+          <div className="md:hidden divide-y divide-border/40">
+            {list.map(({ row: r, tag, waitingMin, lastIso }) => {
+              const color = colorFor(waitingMin as number);
+              const tColor = tagColor(tag);
+              return (
+                <button
+                  key={r.id}
+                  onClick={() => onRowClick(r)}
+                  className="w-full text-left px-4 py-3 hover:bg-surface/40 transition-colors"
+                >
+                  <div className="flex items-start justify-between gap-2 mb-1">
+                    <span className="font-mono text-[11px] text-muted-foreground">{r.idclinic || "—"}</span>
+                    <span
+                      className="inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-semibold border tabular-nums shrink-0"
+                      style={{
+                        color,
+                        background: `color-mix(in oklab, ${color} 14%, transparent)`,
+                        borderColor: `color-mix(in oklab, ${color} 45%, transparent)`,
+                      }}
+                    >
+                      <span className="h-1.5 w-1.5 rounded-full pulse-dot" style={{ background: color }} />
+                      {fmtDuration(waitingMin as number)}
+                    </span>
+                  </div>
+                  <p className="text-sm text-foreground line-clamp-2 leading-snug">{r.thread_title || "(sem título)"}</p>
+                  <div className="flex items-center justify-between gap-2 mt-1">
+                    <p className="text-[11px] text-muted-foreground tabular-nums">{fmtDate(lastIso)}</p>
+                    <span
+                      className="text-[10px] font-medium px-1.5 py-0.5 rounded border"
+                      style={{
+                        color: tColor,
+                        background: `color-mix(in oklab, ${tColor} 10%, transparent)`,
+                        borderColor: `color-mix(in oklab, ${tColor} 35%, transparent)`,
+                      }}
+                    >
+                      {tagLabel(tag)}
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Desktop table */}
+          <table className="hidden md:table w-full text-sm">
+            <thead className="sticky top-0 bg-card border-b border-border">
+              <tr className="text-left text-[11px] uppercase tracking-wider text-muted-foreground">
+                <th className="px-4 py-2 font-medium">IDCLINIC</th>
+                <th className="px-4 py-2 font-medium">Título</th>
+                <th className="px-3 py-2 font-medium">Status</th>
+                <th className="px-3 py-2 font-medium">Última atividade</th>
+                <th className="px-3 py-2 font-medium text-right">Aguardando</th>
+              </tr>
+            </thead>
+            <tbody>
+              {list.map(({ row: r, tag, waitingMin, lastIso }) => {
+                const color = colorFor(waitingMin as number);
+                const tColor = tagColor(tag);
+                return (
+                  <tr
+                    key={r.id}
+                    onClick={() => onRowClick(r)}
+                    className="border-b border-border/30 hover:bg-surface/40 cursor-pointer transition-colors duration-150"
+                  >
+                    <td className="px-4 py-2 font-mono text-xs text-foreground/90">{r.idclinic || "—"}</td>
+                    <td className="px-4 py-2 max-w-[420px] truncate text-foreground/90" title={r.thread_title || ""}>
+                      {r.thread_title || "(sem título)"}
+                    </td>
+                    <td className="px-3 py-2">
+                      <span
+                        className="text-[11px] font-medium px-2 py-0.5 rounded border whitespace-nowrap"
+                        style={{
+                          color: tColor,
+                          background: `color-mix(in oklab, ${tColor} 10%, transparent)`,
+                          borderColor: `color-mix(in oklab, ${tColor} 35%, transparent)`,
+                        }}
+                      >
+                        {tagLabel(tag)}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-xs text-muted-foreground tabular-nums">
+                      {fmtDate(lastIso)}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      <span
+                        className="inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-semibold border tabular-nums"
+                        style={{
+                          color,
+                          background: `color-mix(in oklab, ${color} 14%, transparent)`,
+                          borderColor: `color-mix(in oklab, ${color} 45%, transparent)`,
+                        }}
+                      >
+                        <span className="h-1.5 w-1.5 rounded-full pulse-dot" style={{ background: color }} />
+                        {fmtDuration(waitingMin as number)}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </MetricSection>
+  );
 }: {
   rows: CaseRow[];
   messagesMap: Record<number, Message[]>;

@@ -10,13 +10,18 @@ function getLastActivity(row: CaseRow, messages?: Message[]): string | null {
   return row.opened_at || null;
 }
 
-// Verifica se a última mensagem da thread é de alguém da equipe técnica.
-// Se for, o caso está aguardando resposta DO solicitante, não da equipe.
-function isAwaitingRequester(messages?: Message[]): boolean {
-  if (!messages || messages.length === 0) return false;
+// Verifica se o caso está aguardando a equipe técnica responder
+// Usa waiting_for da análise da IA. Se não houver, faz fallback baseado na última mensagem.
+function isAwaitingTeam(row: CaseRow, messages?: Message[]): boolean {
+  const tag = row.analysis?.waiting_for;
+  // Aceita qualquer variante team_* (n2/chatbot/am)
+  if (tag) return tag === "team_n2" || tag === "team_chatbot" || tag === "team_am";
+
+  // Fallback: se não tem tag (caso ainda não analisado), considera aguardando team se última mensagem é de fora da equipe técnica
+  if (!messages || messages.length === 0) return true;
   const last = messages[messages.length - 1];
   const member = lookupMember(last.author_username);
-  return !!member.area && RESOLUTIVE_AREAS.includes(member.area);
+  return !member.area || !RESOLUTIVE_AREAS.includes(member.area);
 }
 
 function fmtWaiting(minutes: number): string {
@@ -66,6 +71,29 @@ function stateLabel(state: SlaState, priority: string | null, minutes: number): 
     case "critical":  return `SLA ${priority} · ${Math.round(remaining)}min para estourar`;
     case "breached":  return `SLA ${priority} · estourado há ${Math.round(-remaining)}min`;
   }
+}
+
+function teamBadge(tag: string | null | undefined) {
+  if (!tag || !tag.startsWith("team_")) return null;
+  const config: Record<string, { label: string; color: string }> = {
+    team_n2: { label: "N2", color: "#256EFF" },
+    team_chatbot: { label: "Chatbot", color: "#715AFF" },
+    team_am: { label: "AM", color: "#10b981" },
+  };
+  const c = config[tag];
+  if (!c) return null;
+  return (
+    <span
+      className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold border whitespace-nowrap"
+      style={{
+        background: `color-mix(in oklab, ${c.color} 14%, transparent)`,
+        color: c.color,
+        borderColor: `color-mix(in oklab, ${c.color} 40%, transparent)`,
+      }}
+    >
+      {c.label}
+    </span>
+  );
 }
 
 function priorityBadge(p: string | null | undefined) {
@@ -119,8 +147,8 @@ export function WaitingAlertBanner({ rows, messagesMap, onRowClick }: Props) {
     const enriched: EnrichedRow[] = open
       .map((r) => {
         const msgs = messagesMap[r.id];
-        // Se a última mensagem é da equipe técnica, está aguardando o solicitante — não é problema da equipe
-        if (isAwaitingRequester(msgs)) return null;
+        // Banner mostra apenas casos que aguardam retorno da equipe técnica (waiting_for=team)
+        if (!isAwaitingTeam(r, msgs)) return null;
         const last = getLastActivity(r, msgs);
         if (!last) return null;
         const minutes = (now - new Date(last).getTime()) / 60000;
@@ -301,6 +329,7 @@ export function WaitingAlertBanner({ rows, messagesMap, onRowClick }: Props) {
               >
                 {fmtWaiting(minutes)}
               </span>
+              <span className="shrink-0">{teamBadge(row.analysis?.waiting_for)}</span>
               <span className="shrink-0">{priorityBadge(priority)}</span>
             </button>
           );

@@ -60,6 +60,7 @@ export type Analysis = {
   first_response_minutes?: number | null;
   problem_fingerprint?: string | null;
   problem_label?: string | null;
+  waiting_for?: "team_n2" | "team_chatbot" | "team_am" | "client" | "requester" | "none" | null;
   first_responder_username?: string | null;
   first_responder_name?: string | null;
   first_responder_team?: string | null;
