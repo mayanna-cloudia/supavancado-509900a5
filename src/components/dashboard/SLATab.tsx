@@ -87,10 +87,14 @@ function isPureN2(r: CaseRow, msgs: Message[] | undefined): boolean {
   return true;
 }
 
-// Card 2 / 3: time foi acionado (mention OU participação OU IA marcou alguém da área)
+// Card 2 / 3: time foi REALMENTE acionado pra resolver
+// Critérios (qualquer um já basta):
+//   1. Mention explícita do time (@Chatbot, @AM)
+//   2. IA identificou alguém da área como first_responder
+//   3. IA identificou alguém da área como resolver
+// Apenas participação solta NÃO conta (evita duplicar caso entre cards)
 function teamWasActivated(r: CaseRow, msgs: Message[] | undefined, area: Area): boolean {
   if (teamWasMentioned(msgs, area)) return true;
-  if (teamHasParticipant(msgs, area)) return true;
   const fr = normalizeResolverTeam(r.analysis?.first_responder_team);
   const rs = normalizeResolverTeam(r.analysis?.resolver_team);
   if (fr === area || rs === area) return true;

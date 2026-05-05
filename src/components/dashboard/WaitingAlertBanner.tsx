@@ -76,9 +76,9 @@ function stateLabel(state: SlaState, priority: string | null, minutes: number): 
 function teamBadge(tag: string | null | undefined) {
   if (!tag || !tag.startsWith("team_")) return null;
   const config: Record<string, { label: string; color: string }> = {
-    team_n2: { label: "N2", color: "#256EFF" },
-    team_chatbot: { label: "Chatbot", color: "#715AFF" },
-    team_am: { label: "AM", color: "#10b981" },
+    team_n2: { label: "Aguardando N2", color: "#256EFF" },
+    team_chatbot: { label: "Aguardando Chatbot", color: "#715AFF" },
+    team_am: { label: "Aguardando AM", color: "#10b981" },
   };
   const c = config[tag];
   if (!c) return null;
