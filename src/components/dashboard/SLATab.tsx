@@ -87,18 +87,15 @@ function isPureN2(r: CaseRow, msgs: Message[] | undefined): boolean {
   return true;
 }
 
-// Card 2 / 3: time foi REALMENTE acionado pra resolver
-// Critérios (qualquer um já basta):
-//   1. Mention explícita do time (@Chatbot, @AM)
-//   2. IA identificou alguém da área como first_responder
-//   3. IA identificou alguém da área como resolver
-// Apenas participação solta NÃO conta (evita duplicar caso entre cards)
-function teamWasActivated(r: CaseRow, msgs: Message[] | undefined, area: Area): boolean {
-  if (teamWasMentioned(msgs, area)) return true;
-  const fr = normalizeResolverTeam(r.analysis?.first_responder_team);
-  const rs = normalizeResolverTeam(r.analysis?.resolver_team);
-  if (fr === area || rs === area) return true;
-  return false;
+// Card 2 / 3: caso pertence à área de quem RESOLVEU
+// Regra simples: olhamos resolver_team. Quem resolveu, é responsável pelo caso.
+// Casos sem resolver definido (em aberto) usam o first_responder_team como fallback.
+function teamWasActivated(r: CaseRow, _msgs: Message[] | undefined, area: Area): boolean {
+  const resolverArea = normalizeResolverTeam(r.analysis?.resolver_team);
+  if (resolverArea) return resolverArea === area;
+  // Sem resolver ainda → usa quem respondeu primeiro como pista
+  const firstArea = normalizeResolverTeam(r.analysis?.first_responder_team);
+  return firstArea === area;
 }
 
 type AreaStats = {
