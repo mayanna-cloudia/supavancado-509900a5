@@ -350,7 +350,7 @@ function WaitingSection({
       .map((r) => {
         const msgs = messagesMap[r.id];
         const tag = getWaitingFor(r, msgs);
-        const lastIso = lastActivityIso(r, msgs);
+        const lastIso = lastActivityIso(r, messagesMap);
         const lastTs = lastIso ? new Date(lastIso).getTime() : null;
         const waitingMin = lastTs ? Math.max(0, (now - lastTs) / 60000) : null;
         return { row: r, tag, waitingMin, lastIso };
