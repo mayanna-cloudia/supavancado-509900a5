@@ -10,6 +10,31 @@ function getLastActivity(row: CaseRow, messages?: Message[]): string | null {
   return row.opened_at || null;
 }
 
+// Pega o timestamp da ÚLTIMA mensagem que veio de FORA da equipe técnica.
+// É a partir desse momento que o SLA da equipe começa a contar.
+// Se a equipe respondeu e o solicitante não voltou, retorna null (relógio parado).
+function lastRequesterMessageIso(messages?: Message[]): string | null {
+  if (!messages || messages.length === 0) return null;
+  // Procura de trás pra frente a primeira msg do solicitante (não-resolutiva)
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    const member = lookupMember(m.author_username);
+    const isTeam = !!member.area && RESOLUTIVE_AREAS.includes(member.area);
+    if (!isTeam) {
+      // Achou uma msg do solicitante. Verifica se houve resposta DEPOIS dela.
+      // Se sim, o relógio já parou.
+      for (let j = i + 1; j < messages.length; j++) {
+        const next = messages[j];
+        const nextMember = lookupMember(next.author_username);
+        const nextIsTeam = !!nextMember.area && RESOLUTIVE_AREAS.includes(nextMember.area);
+        if (nextIsTeam) return null; // equipe respondeu, relógio parado
+      }
+      return m.sent_at; // ninguém da equipe respondeu depois dessa msg
+    }
+  }
+  return null;
+}
+
 // Verifica se o caso está aguardando a equipe técnica responder
 // Usa waiting_for da análise da IA. Se não houver, faz fallback baseado na última mensagem.
 function isAwaitingTeam(row: CaseRow, messages?: Message[]): boolean {
@@ -147,10 +172,11 @@ export function WaitingAlertBanner({ rows, messagesMap, onRowClick }: Props) {
     const enriched: EnrichedRow[] = open
       .map((r) => {
         const msgs = messagesMap[r.id];
-        // Banner mostra apenas casos que aguardam retorno da equipe técnica (waiting_for=team)
+        // Banner mostra apenas casos que aguardam retorno da equipe técnica (waiting_for=team_*)
         if (!isAwaitingTeam(r, msgs)) return null;
-        const last = getLastActivity(r, msgs);
-        if (!last) return null;
+        // O relógio do SLA conta desde a última msg do solicitante (sem resposta da equipe depois)
+        const last = lastRequesterMessageIso(msgs);
+        if (!last) return null; // equipe já respondeu, relógio parado
         const minutes = (now - new Date(last).getTime()) / 60000;
         if (!isFinite(minutes) || minutes < 0) return null;
         const priority = getPriority(r);
