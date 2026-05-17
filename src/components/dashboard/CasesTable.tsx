@@ -1,9 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
-import { Calendar as CalendarIcon, Search, X, SlidersHorizontal, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
+import { Calendar as CalendarIcon, Search, X, SlidersHorizontal, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ChevronDown, Check } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+} from "@/components/ui/command";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -41,7 +50,14 @@ export function applyFilters(rows: CaseRow[], f: Filters): CaseRow[] {
       const end = new Date(f.to); end.setHours(23, 59, 59, 999);
       if (new Date(r.opened_at) > end) return false;
     }
-    if (f.idclinic !== "all" && r.idclinic !== f.idclinic) return false;
+    if (f.idclinic !== "all") {
+      if (f.idclinic === "__no_id__") {
+        // Caso especial: só casos SEM IDCLINIC
+        if (r.idclinic && r.idclinic.trim()) return false;
+      } else if (r.idclinic !== f.idclinic) {
+        return false;
+      }
+    }
     if (f.priority !== "all" && getPriority(r) !== f.priority) return false;
     if (f.status !== "all") {
       const resolved = !!r.analysis?.resolved;
@@ -83,6 +99,252 @@ function activeFilterCount(f: Filters): number {
   if (f.status !== "all") n++;
   if (f.search.trim()) n++;
   return n;
+}
+
+// Item genérico para o combobox
+export type ComboboxOption = {
+  value: string;
+  label: string;
+  searchKey?: string; // texto usado para busca (ex: nome + username)
+  count?: number;
+  // Se true, fica em destaque visual (rosa) — usado para "Sem IDCLINIC"
+  highlight?: boolean;
+};
+
+// Combobox genérico com busca embutida.
+// Estrutura: [opção "todos"] + [opções destacadas (separador)] + [opções normais]
+function SearchableCombobox({
+  value,
+  onChange,
+  allOption,
+  highlightedOptions = [],
+  options,
+  placeholder,
+  searchPlaceholder,
+  emptyText,
+  ariaLabel,
+  width = "170px",
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  allOption: { value: string; label: string };
+  highlightedOptions?: ComboboxOption[];
+  options: ComboboxOption[];
+  placeholder: string;
+  searchPlaceholder: string;
+  emptyText: string;
+  ariaLabel: string;
+  width?: string;
+}) {
+  const [open, setOpen] = useState(false);
+
+  // Label atual: procura entre allOption, highlightedOptions e options
+  const currentLabel = (() => {
+    if (value === allOption.value) return allOption.label;
+    const fromHighlighted = highlightedOptions.find((o) => o.value === value);
+    if (fromHighlighted) return fromHighlighted.label;
+    const fromOptions = options.find((o) => o.value === value);
+    if (fromOptions) return fromOptions.label;
+    return placeholder;
+  })();
+
+  const isHighlightedSelected = highlightedOptions.some((o) => o.value === value);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label={ariaLabel}
+          aria-expanded={open}
+          className={cn(
+            "h-8 w-full inline-flex items-center justify-between gap-2 rounded-md border bg-surface px-2.5 text-xs transition-colors",
+            "border-border text-foreground hover:border-[var(--brand-blue)]/60",
+            isHighlightedSelected && "text-[#f4c0d1]",
+          )}
+          style={{ maxWidth: `min(100%, ${width})` }}
+        >
+          <span className="truncate">{currentLabel}</span>
+          <ChevronDown className="h-3.5 w-3.5 opacity-60 shrink-0" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        className="w-[240px] p-0 bg-card border-border"
+      >
+        <Command shouldFilter={true}>
+          <CommandInput placeholder={searchPlaceholder} className="h-9 text-xs" />
+          <CommandList className="max-h-[260px]">
+            <CommandEmpty className="py-4 text-center text-xs text-muted-foreground">
+              {emptyText}
+            </CommandEmpty>
+            <CommandGroup>
+              <CommandItem
+                value={allOption.label.toLowerCase()}
+                onSelect={() => {
+                  onChange(allOption.value);
+                  setOpen(false);
+                }}
+                className="text-xs"
+              >
+                <span className="flex-1">{allOption.label}</span>
+                {value === allOption.value && <Check className="h-3.5 w-3.5" />}
+              </CommandItem>
+              {highlightedOptions.map((o) => {
+                const selected = value === o.value;
+                return (
+                  <CommandItem
+                    key={o.value}
+                    value={o.searchKey || o.label.toLowerCase()}
+                    onSelect={() => {
+                      onChange(o.value);
+                      setOpen(false);
+                    }}
+                    className="text-xs"
+                    style={{
+                      color: o.highlight ? "#f4c0d1" : undefined,
+                      background: selected && o.highlight ? "rgba(244,192,209,0.08)" : undefined,
+                    }}
+                  >
+                    <span className="flex-1">{o.label}</span>
+                    {o.count != null && (
+                      <span className="text-[10px] opacity-60 mr-2">{o.count}</span>
+                    )}
+                    {selected && <Check className="h-3.5 w-3.5" />}
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+            {options.length > 0 && (
+              <>
+                <CommandSeparator />
+                <CommandGroup>
+                  {options.map((o) => (
+                    <CommandItem
+                      key={o.value}
+                      value={o.searchKey || o.label.toLowerCase()}
+                      onSelect={() => {
+                        onChange(o.value);
+                        setOpen(false);
+                      }}
+                      className="text-xs"
+                    >
+                      <span className="flex-1">{o.label}</span>
+                      {o.count != null && (
+                        <span className="text-[10px] opacity-60 mr-2">{o.count}</span>
+                      )}
+                      {value === o.value && <Check className="h-3.5 w-3.5" />}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </>
+            )}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// Wrapper específico do IDCLINIC
+function IdclinicCombobox({
+  value,
+  rows,
+  onChange,
+}: {
+  value: string;
+  rows: CaseRow[];
+  onChange: (v: string) => void;
+}) {
+  const { clinics, noIdCount } = useMemo(() => {
+    const set = new Set<string>();
+    let noId = 0;
+    for (const r of rows) {
+      if (r.idclinic && r.idclinic.trim()) {
+        set.add(r.idclinic.trim());
+      } else {
+        noId++;
+      }
+    }
+    const list: ComboboxOption[] = Array.from(set)
+      .sort((a, b) => {
+        const na = Number(a);
+        const nb = Number(b);
+        if (!isNaN(na) && !isNaN(nb)) return na - nb;
+        return a.localeCompare(b);
+      })
+      .map((c) => ({ value: c, label: c }));
+    return { clinics: list, noIdCount: noId };
+  }, [rows]);
+
+  const highlighted: ComboboxOption[] = noIdCount > 0
+    ? [{
+        value: "__no_id__",
+        label: "— Sem IDCLINIC",
+        searchKey: "sem idclinic — sem id —",
+        count: noIdCount,
+        highlight: true,
+      }]
+    : [];
+
+  return (
+    <SearchableCombobox
+      value={value}
+      onChange={onChange}
+      allOption={{ value: "all", label: "Todos os clientes" }}
+      highlightedOptions={highlighted}
+      options={clinics}
+      placeholder="IDCLINIC"
+      searchPlaceholder="Buscar IDCLINIC..."
+      emptyText="Nenhum IDCLINIC encontrado"
+      ariaLabel="Filtrar por IDCLINIC"
+      width="170px"
+    />
+  );
+}
+
+// Wrapper específico do "Quem resolveu"
+function ResolverCombobox({
+  value,
+  rows,
+  onChange,
+}: {
+  value: string;
+  rows: CaseRow[];
+  onChange: (v: string) => void;
+}) {
+  const options = useMemo<ComboboxOption[]>(() => {
+    const set = new Set<string>();
+    for (const r of rows) {
+      if (r.analysis?.resolver_name) set.add(r.analysis.resolver_name);
+    }
+    return Array.from(set)
+      .sort((a, b) => a.localeCompare(b))
+      .map((username) => {
+        const info = lookupMember(username);
+        const displayName = info.name || username;
+        return {
+          value: username,
+          label: displayName,
+          // Permite buscar tanto pelo nome quanto pelo username
+          searchKey: `${displayName} ${username}`.toLowerCase(),
+        };
+      });
+  }, [rows]);
+
+  return (
+    <SearchableCombobox
+      value={value}
+      onChange={onChange}
+      allOption={{ value: "all", label: "Quem resolveu (todos)" }}
+      options={options}
+      placeholder="Quem resolveu"
+      searchPlaceholder="Buscar pessoa..."
+      emptyText="Ninguém encontrado"
+      ariaLabel="Filtrar por quem resolveu"
+      width="190px"
+    />
+  );
 }
 
 function FiltersBody({
@@ -136,27 +398,17 @@ function FiltersBody({
           </PopoverContent>
         </Popover>
 
-        <Select value={filters.idclinic} onValueChange={(v) => update({ idclinic: v })}>
-          <SelectTrigger className="h-8 w-full sm:w-[170px] bg-surface border-border text-xs">
-            <SelectValue placeholder="IDCLINIC" />
-          </SelectTrigger>
-          <SelectContent className="bg-card border-border max-h-[300px]">
-            <SelectItem value="all">Todos os clientes</SelectItem>
-            {clinics.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <IdclinicCombobox
+          value={filters.idclinic}
+          rows={rows}
+          onChange={(v) => update({ idclinic: v })}
+        />
 
-        <Select value={filters.resolver} onValueChange={(v) => update({ resolver: v })}>
-          <SelectTrigger aria-label="Filtrar por quem resolveu" className="h-8 w-full sm:w-[190px] bg-surface border-border text-xs">
-            <SelectValue placeholder="Quem resolveu" />
-          </SelectTrigger>
-          <SelectContent className="bg-card border-border max-h-[300px]">
-            <SelectItem value="all">Quem resolveu (todos)</SelectItem>
-            {resolvers.map((r) => (
-              <SelectItem key={r} value={r}>{lookupMember(r).name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <ResolverCombobox
+          value={filters.resolver}
+          rows={rows}
+          onChange={(v) => update({ resolver: v })}
+        />
 
         <Select value={filters.area} onValueChange={(v) => update({ area: v as Filters["area"] })}>
           <SelectTrigger aria-label="Filtrar por área resolvedora" className="h-8 w-full sm:w-[170px] bg-surface border-border text-xs">
