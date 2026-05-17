@@ -1,9 +1,19 @@
 import { useMemo, useState } from "react";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from "recharts";
-import { Trophy } from "lucide-react";
+import { Trophy, ChevronDown, Check, User } from "lucide-react";
 import type { CaseRow, Message } from "@/lib/supabase";
 import { lookupMember, AREA_LABEL, AREA_COLOR_HEX, AREA_BADGE, ALL_AREAS, type Area } from "@/lib/team";
 import { cn } from "@/lib/utils";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+} from "@/components/ui/command";
 import {
   OverviewDateFilter,
   rangeForPreset,
@@ -30,44 +40,33 @@ function aggregateByArea(items: { username: string }[]) {
   return { byArea, unknown };
 }
 
-// Verifica se alguém de outra área (Chatbot/AM/SuporteN2) participou da thread
-function hasOtherAreaParticipation(msgs: Message[] | undefined, exceptArea: Area | null): boolean {
+// Verifica se alguém de OUTRA área (resolutiva) participou da thread
+function hasOtherTeamParticipation(msgs: Message[] | undefined, ownArea: Area | null): boolean {
   if (!msgs || msgs.length === 0) return false;
   return msgs.some((m) => {
     const member = lookupMember(m.author_username);
     if (!member.area) return false;
-    if (member.area === exceptArea) return false; // mesma área não conta
+    if (member.area === ownArea) return false;
     return member.area === "Chatbot" || member.area === "AM" || member.area === "SuporteN2";
   });
 }
 
 type PersonStats = {
-  username: string;
-  name: string;
-  area: Area | null;
-  solo: number;       // Resolvidos sozinhos (foi resolver E ninguém de outra área tocou)
-  involved: number;   // Foi first_responder OU resolver
-  totalResolved: number;
+  resolvedEnd2End: number;  // resolveu sozinha (ela = resolver + sem triagem)
+  triages: number;          // foi first_responder mas outro resolveu
+  totalCases: number;       // resolvedEnd2End + triages
+  pct: number;              // % resolveu sozinha
 };
 
-function computePersonStats(rows: CaseRow[], messagesMap: Record<number, Message[]>): PersonStats[] {
-  const map = new Map<string, PersonStats>();
-
-  const ensure = (username: string): PersonStats => {
-    const key = username.toLowerCase();
-    if (!map.has(key)) {
-      const info = lookupMember(username);
-      map.set(key, {
-        username: key,
-        name: info.name || username,
-        area: info.area,
-        solo: 0,
-        involved: 0,
-        totalResolved: 0,
-      });
-    }
-    return map.get(key)!;
-  };
+function computePersonStats(
+  username: string,
+  rows: CaseRow[],
+  messagesMap: Record<number, Message[]>,
+): PersonStats {
+  const key = username.toLowerCase();
+  const info = lookupMember(username);
+  let resolvedEnd2End = 0;
+  let triages = 0;
 
   for (const r of rows) {
     const a = r.analysis;
@@ -77,80 +76,165 @@ function computePersonStats(rows: CaseRow[], messagesMap: Record<number, Message
     const firstUser = (a.first_responder_name || "").toLowerCase();
     const msgs = messagesMap[r.id];
 
-    if (a.resolved && resolverUser) {
-      const stats = ensure(resolverUser);
-      stats.totalResolved++;
+    const isResolver = a.resolved && resolverUser === key;
+    const isFirstResponder = firstUser === key;
 
-      const otherAreaTouched = hasOtherAreaParticipation(msgs, stats.area);
-      if (!otherAreaTouched) {
-        stats.solo++;
+    if (isResolver) {
+      const otherTouched = hasOtherTeamParticipation(msgs, info.area);
+      if (!otherTouched) {
+        resolvedEnd2End++;
+      } else if (isFirstResponder) {
+        // resolveu, mas outro time também atuou — conta como triagem
+        triages++;
       }
-    }
-
-    const involvedUsers = new Set<string>();
-    if (firstUser) involvedUsers.add(firstUser);
-    if (resolverUser) involvedUsers.add(resolverUser);
-
-    for (const u of involvedUsers) {
-      const stats = ensure(u);
-      stats.involved++;
+    } else if (isFirstResponder && a.resolved && resolverUser && resolverUser !== key) {
+      // ela abriu/respondeu primeiro, outro resolveu
+      triages++;
     }
   }
 
-  return Array.from(map.values()).filter((p) => p.area && (p.solo > 0 || p.involved > 0 || p.totalResolved > 0));
+  const totalCases = resolvedEnd2End + triages;
+  const pct = totalCases > 0 ? Math.round((resolvedEnd2End / totalCases) * 100) : 0;
+  return { resolvedEnd2End, triages, totalCases, pct };
 }
 
-function PersonMetrics({ stats }: { stats: PersonStats }) {
-  const pct = stats.involved > 0 ? Math.round((stats.solo / stats.involved) * 100) : 0;
-  const areaColor = stats.area ? AREA_COLOR_HEX[stats.area] : "#888";
+// Lista de pessoas que aparecem como resolver ou first_responder
+function listAvailablePeople(rows: CaseRow[]): { username: string; name: string; area: Area | null }[] {
+  const map = new Map<string, { username: string; name: string; area: Area | null }>();
+  for (const r of rows) {
+    const a = r.analysis;
+    if (!a) continue;
+    for (const u of [a.resolver_name, a.first_responder_name]) {
+      if (!u) continue;
+      const key = u.toLowerCase();
+      if (!map.has(key)) {
+        const info = lookupMember(u);
+        if (info.area) {
+          map.set(key, { username: key, name: info.name || u, area: info.area });
+        }
+      }
+    }
+  }
+  return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function PersonPicker({
+  people,
+  selected,
+  onChange,
+}: {
+  people: { username: string; name: string; area: Area | null }[];
+  selected: string | null;
+  onChange: (username: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  const grouped = useMemo(() => {
+    const order: Area[] = ["SuporteN2", "Chatbot", "AM"];
+    const groups: Record<string, typeof people> = {};
+    for (const p of people) {
+      const key = p.area || "Outros";
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(p);
+    }
+    return order
+      .map((a) => ({ area: a, people: groups[a] || [] }))
+      .filter((g) => g.people.length > 0);
+  }, [people]);
+
+  const selectedPerson = people.find((p) => p.username === selected);
+  const label = selectedPerson ? selectedPerson.name : "Selecione uma pessoa";
 
   return (
-    <div className="glass-card p-4 fade-in relative overflow-hidden">
-      <div className="absolute top-0 left-0 right-0 h-[3px]" style={{ background: areaColor }} />
-
-      <div className="flex items-center gap-2 mb-3">
-        <span className="text-sm font-medium text-foreground truncate">{stats.name}</span>
-        {stats.area && (
-          <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-semibold border", AREA_BADGE[stats.area])}>
-            {AREA_LABEL[stats.area]}
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label="Selecionar pessoa para ver métricas"
+          aria-expanded={open}
+          className={cn(
+            "h-10 inline-flex items-center justify-between gap-2 rounded-md border bg-surface px-3 text-sm transition-colors w-full sm:w-[280px]",
+            "border-border text-foreground hover:border-[var(--brand-blue)]/60",
+          )}
+        >
+          <span className="flex items-center gap-2 truncate">
+            <User className="h-4 w-4 opacity-70" />
+            <span className={cn("truncate", !selectedPerson && "text-muted-foreground")}>{label}</span>
           </span>
-        )}
-      </div>
+          <ChevronDown className="h-4 w-4 opacity-60 shrink-0" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        className="w-[280px] p-0 bg-card border-border"
+      >
+        <Command shouldFilter={true}>
+          <CommandInput placeholder="Buscar pessoa..." className="h-9 text-xs" />
+          <CommandList className="max-h-[320px]">
+            <CommandEmpty className="py-4 text-center text-xs text-muted-foreground">
+              Ninguém encontrado
+            </CommandEmpty>
+            {grouped.map((g, idx) => (
+              <div key={g.area}>
+                {idx > 0 && <CommandSeparator />}
+                <CommandGroup
+                  heading={
+                    <span
+                      className="text-[10px] uppercase tracking-wider font-semibold"
+                      style={{ color: AREA_COLOR_HEX[g.area] }}
+                    >
+                      {AREA_LABEL[g.area]}
+                    </span>
+                  }
+                >
+                  {g.people.map((p) => (
+                    <CommandItem
+                      key={p.username}
+                      value={p.name.toLowerCase()}
+                      onSelect={() => {
+                        onChange(p.username);
+                        setOpen(false);
+                      }}
+                      className="text-xs"
+                    >
+                      <span className="flex-1">{p.name}</span>
+                      {selected === p.username && <Check className="h-3.5 w-3.5" />}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </div>
+            ))}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
-      <div className="grid grid-cols-3 gap-2">
-        <div className="rounded-md bg-surface/60 border border-border/50 p-2 text-center">
-          <div
-            className="text-[10px] uppercase tracking-wider text-muted-foreground"
-            title="Casos onde a pessoa foi resolver e ninguém de outra área tocou (sem triagem)"
-          >
-            Resolvidos sozinhos
-          </div>
-          <div className="mt-1 text-xl font-semibold tabular-nums" style={{ color: "var(--brand-green)" }}>
-            {stats.solo}
-          </div>
-        </div>
-        <div className="rounded-md bg-surface/60 border border-border/50 p-2 text-center">
-          <div
-            className="text-[10px] uppercase tracking-wider text-muted-foreground"
-            title="Casos onde a pessoa foi primeiro responder ou resolver"
-          >
-            Envolvidos
-          </div>
-          <div className="mt-1 text-xl font-semibold tabular-nums" style={{ color: "var(--brand-blue)" }}>
-            {stats.involved}
-          </div>
-        </div>
-        <div className="rounded-md bg-surface/60 border border-border/50 p-2 text-center">
-          <div
-            className="text-[10px] uppercase tracking-wider text-muted-foreground"
-            title="Resolvidos sozinhos ÷ Envolvidos"
-          >
-            % sozinho
-          </div>
-          <div className="mt-1 text-xl font-semibold tabular-nums" style={{ color: "#715AFF" }}>
-            {pct}%
-          </div>
-        </div>
+function MetricCardBig({
+  label,
+  description,
+  value,
+  color,
+  suffix = "",
+}: {
+  label: string;
+  description: string;
+  value: number;
+  color: string;
+  suffix?: string;
+}) {
+  return (
+    <div className="glass-card p-5 fade-in relative overflow-hidden">
+      <div className="absolute top-0 left-0 right-0 h-[3px]" style={{ background: color }} />
+      <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">
+        {label}
+      </p>
+      <p className="mt-1 text-xs text-muted-foreground leading-snug min-h-[32px]">
+        {description}
+      </p>
+      <div className="mt-3 font-display text-4xl font-semibold tabular-nums" style={{ color }}>
+        {value}{suffix}
       </div>
     </div>
   );
@@ -163,70 +247,88 @@ function PerPersonSection({
   rows: CaseRow[];
   messagesMap: Record<number, Message[]>;
 }) {
+  const people = useMemo(() => listAvailablePeople(rows), [rows]);
+  const [selected, setSelected] = useState<string | null>(null);
+
   const stats = useMemo(() => {
-    const all = computePersonStats(rows, messagesMap);
-    return all.sort((a, b) => {
-      if (b.involved !== a.involved) return b.involved - a.involved;
-      return a.name.localeCompare(b.name);
-    });
-  }, [rows, messagesMap]);
+    if (!selected) return null;
+    return computePersonStats(selected, rows, messagesMap);
+  }, [selected, rows, messagesMap]);
 
-  const groupedByArea = useMemo(() => {
-    const groups: Record<string, PersonStats[]> = {};
-    for (const p of stats) {
-      const key = p.area || "Outros";
-      if (!groups[key]) groups[key] = [];
-      groups[key].push(p);
-    }
-    return groups;
-  }, [stats]);
-
-  const areaOrder: Area[] = ["SuporteN2", "Chatbot", "AM"];
+  const selectedPerson = people.find((p) => p.username === selected);
 
   return (
     <div className="glass-card p-5 fade-in">
-      <div className="flex items-center gap-2 mb-4">
-        <div
-          className="rounded-lg p-2"
-          style={{ background: "color-mix(in oklab, var(--brand-blue) 14%, transparent)" }}
-        >
-          <Trophy className="h-4 w-4" style={{ color: "var(--brand-blue)" }} />
+      <div className="flex items-start justify-between gap-4 mb-5 flex-wrap">
+        <div className="flex items-center gap-2">
+          <div
+            className="rounded-lg p-2"
+            style={{ background: "color-mix(in oklab, var(--brand-blue) 14%, transparent)" }}
+          >
+            <Trophy className="h-4 w-4" style={{ color: "var(--brand-blue)" }} />
+          </div>
+          <div>
+            <h3 className="text-sm font-medium text-foreground">Métricas individuais</h3>
+            <p className="text-xs text-muted-foreground">
+              Selecione uma pessoa para ver o desempenho no período
+            </p>
+          </div>
         </div>
-        <div>
-          <h3 className="text-sm font-medium text-foreground">Métricas individuais</h3>
-          <p className="text-xs text-muted-foreground">
-            Quantos casos cada pessoa resolveu sozinha vs. com triagem
-          </p>
-        </div>
+
+        <PersonPicker
+          people={people}
+          selected={selected}
+          onChange={setSelected}
+        />
       </div>
 
-      <div className="space-y-5">
-        {areaOrder.map((area) => {
-          const people = groupedByArea[area];
-          if (!people || people.length === 0) return null;
-          return (
-            <div key={area}>
-              <div className="flex items-center gap-2 mb-3">
-                <span className={cn("px-2 py-0.5 rounded text-[11px] font-semibold border", AREA_BADGE[area])}>
-                  {AREA_LABEL[area]}
-                </span>
-                <span className="text-[11px] text-muted-foreground">{people.length} pessoa(s)</span>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {people.map((p) => (
-                  <PersonMetrics key={p.username} stats={p} />
-                ))}
-              </div>
-            </div>
-          );
-        })}
-
-        {stats.length === 0 && (
-          <p className="text-sm text-muted-foreground text-center py-6">
-            Nenhuma métrica disponível no período selecionado.
+      {!selected || !stats ? (
+        <div className="rounded-md border border-dashed border-border bg-surface/30 p-8 text-center">
+          <User className="h-8 w-8 mx-auto text-muted-foreground/50 mb-2" />
+          <p className="text-sm text-foreground/80">Nenhuma pessoa selecionada</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Use o seletor acima para ver as métricas individuais
           </p>
-        )}
-      </div>
+        </div>
+      ) : (
+        <>
+          <div className="mb-4 flex items-center gap-2">
+            <span className="text-sm text-foreground">Mostrando dados de</span>
+            <span className="text-sm font-medium text-foreground">{selectedPerson?.name}</span>
+            {selectedPerson?.area && (
+              <span className={cn("px-2 py-0.5 rounded text-[10px] font-semibold border", AREA_BADGE[selectedPerson.area])}>
+                {AREA_LABEL[selectedPerson.area]}
+              </span>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <MetricCardBig
+              label="Resolvidos do início ao fim"
+              description="Casos que você resolveu sem ajuda de outro time (Chatbot ou AM)"
+              value={stats.resolvedEnd2End}
+              color="var(--brand-green)"
+            />
+            <MetricCardBig
+              label="Triagens"
+              description="Casos que você atendeu primeiro, mas o resolvedor final foi outro time"
+              value={stats.triages}
+              color="var(--brand-blue)"
+            />
+            <MetricCardBig
+              label="Taxa de resolução direta"
+              description="Quanto você resolveu sozinho(a), do total de casos que atuou"
+              value={stats.pct}
+              color="#715AFF"
+              suffix="%"
+            />
+          </div>
+
+          <div className="mt-4 text-xs text-muted-foreground">
+            Total no período: <span className="text-foreground font-medium tabular-nums">{stats.totalCases}</span> caso(s) atendido(s) por {selectedPerson?.name}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -325,7 +427,6 @@ export function TeamTab({ rows, messagesMap }: { rows: CaseRow[]; messagesMap: R
 
   const filteredRows = useMemo(() => filterByDateRange(rows, range), [rows, range]);
 
-  // Suporte Avançado participados = par único (caso, username)
   const participated = useMemo(() => {
     const out: { username: string }[] = [];
     for (const r of filteredRows) {
