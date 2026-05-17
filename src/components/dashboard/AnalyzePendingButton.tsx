@@ -83,20 +83,23 @@ export function AnalyzePendingButton({ rows, onDone }: Props) {
     cancelRef.current = true;
   };
 
+  // Não renderiza o botão quando não há pendentes e não está rodando
+  if (allAnalyzed && !running) {
+    return null;
+  }
+
   return (
     <>
       <button
         type="button"
-        disabled={allAnalyzed || running}
+        disabled={running}
         onClick={() => setConfirmOpen(true)}
-        aria-label={allAnalyzed ? "Todos os casos analisados" : `Analisar ${pendingIds.length} casos pendentes com IA`}
+        aria-label={`Analisar ${pendingIds.length} casos pendentes com IA`}
         className={cn(
           "inline-flex items-center gap-1.5 rounded-md text-[12px] font-medium border transition-all duration-200",
-          allAnalyzed
-            ? "bg-surface/60 border-border text-muted-foreground cursor-default"
-            : running
-              ? "bg-[#256EFF]/70 border-transparent text-white cursor-wait"
-              : "bg-[#256EFF] border-transparent text-white hover:bg-[#1f5dd9]"
+          running
+            ? "bg-[#256EFF]/70 border-transparent text-white cursor-wait"
+            : "bg-[#256EFF] border-transparent text-white hover:bg-[#1f5dd9]"
         )}
         style={{ padding: "6px 14px" }}
       >
@@ -104,11 +107,6 @@ export function AnalyzePendingButton({ rows, onDone }: Props) {
           <>
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
             Analisando…
-          </>
-        ) : allAnalyzed ? (
-          <>
-            <CheckCircle2 className="h-3.5 w-3.5" />
-            Tudo analisado
           </>
         ) : (
           <>

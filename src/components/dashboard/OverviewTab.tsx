@@ -172,10 +172,19 @@ export function OverviewTab({
       </div>
       <WaitingAlertBanner rows={rows} messagesMap={messagesMap} onRowClick={onRowClick} />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard label="Total de casos" value={stats.total.toLocaleString("pt-BR")} accent="blue" />
-        <KpiCard label="Resolvidos" value={stats.resolved.toLocaleString("pt-BR")} hint={stats.total ? `${Math.round((stats.resolved / stats.total) * 100)}% do total` : undefined} accent="green" />
-        <KpiCard label="Em aberto" value={stats.open.toLocaleString("pt-BR")} hint={stats.total ? `${Math.round((stats.open / stats.total) * 100)}% do total` : undefined} accent="orange" />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <KpiCard
+          label="Resolvidos"
+          value={stats.resolved.toLocaleString("pt-BR")}
+          hint={stats.total ? `${Math.round((stats.resolved / stats.total) * 100)}% de ${stats.total.toLocaleString("pt-BR")} casos` : undefined}
+          accent="green"
+        />
+        <KpiCard
+          label="Em aberto"
+          value={stats.open.toLocaleString("pt-BR")}
+          hint={stats.total ? `${Math.round((stats.open / stats.total) * 100)}% de ${stats.total.toLocaleString("pt-BR")} casos` : undefined}
+          accent="orange"
+        />
         <KpiCard label="Tempo médio resolução" value={fmtDuration(stats.avgMin)} accent="purple" />
       </div>
 

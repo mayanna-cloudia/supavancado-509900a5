@@ -27,7 +27,7 @@ export type Filters = {
 export const DEFAULT_FILTERS: Filters = {
   idclinic: "all",
   priority: "all",
-  status: "all",
+  status: "open", // Default: mostra apenas casos em aberto
   category: "all",
   resolver: "all",
   area: "all",
@@ -143,16 +143,6 @@ function FiltersBody({
           <SelectContent className="bg-card border-border max-h-[300px]">
             <SelectItem value="all">Todos os clientes</SelectItem>
             {clinics.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-          </SelectContent>
-        </Select>
-
-        <Select value={filters.category} onValueChange={(v) => update({ category: v })}>
-          <SelectTrigger className="h-8 w-full sm:w-[200px] bg-surface border-border text-xs">
-            <SelectValue placeholder="Categoria" />
-          </SelectTrigger>
-          <SelectContent className="bg-card border-border max-h-[300px]">
-            <SelectItem value="all">Todas as categorias</SelectItem>
-            {categories.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
           </SelectContent>
         </Select>
 
@@ -390,7 +380,7 @@ function CaseCard({ r, onClick }: { r: CaseRow; onClick: () => void }) {
 }
 
 const PAGE_SIZES = [100, 250, 500, 1000] as const;
-const DEFAULT_PAGE_SIZE = 500;
+const DEFAULT_PAGE_SIZE = 100;
 
 export function CasesTable({ rows, onRowClick }: { rows: CaseRow[]; onRowClick: (r: CaseRow) => void }) {
   const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
@@ -436,7 +426,6 @@ export function CasesTable({ rows, onRowClick }: { rows: CaseRow[]; onRowClick: 
                 <th className="px-4 py-3 font-medium">IDCLINIC</th>
                 <th className="px-4 py-3 font-medium">Título</th>
                 <th className="px-3 py-3 font-medium">Prio</th>
-                <th className="px-3 py-3 font-medium">Categoria</th>
                 <th className="px-3 py-3 font-medium">Módulo</th>
                 <th className="px-4 py-3 font-medium">Resumo IA</th>
                 <th className="px-3 py-3 font-medium">1ª Resp.</th>
@@ -471,7 +460,6 @@ export function CasesTable({ rows, onRowClick }: { rows: CaseRow[]; onRowClick: 
                         </span>
                       ) : <span className="text-muted-foreground">—</span>}
                     </td>
-                    <td className="px-3 py-3 text-xs text-foreground/80 max-w-[140px] truncate" title={a?.category || ""}>{a?.category || "—"}</td>
                     <td className="px-3 py-3 text-xs text-foreground/70 max-w-[140px] truncate" title={a?.subcategory || ""}>{a?.subcategory || "—"}</td>
                     <td className="px-4 py-3 max-w-[320px] truncate text-xs text-muted-foreground" title={a?.summary || ""}>
                       {a?.summary || <span className="italic">aguardando análise</span>}
