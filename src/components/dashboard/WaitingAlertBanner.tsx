@@ -13,6 +13,21 @@ function getLastActivity(row: CaseRow, messages?: Message[]): string | null {
 // Pega o timestamp da ÚLTIMA mensagem que veio de FORA da equipe técnica.
 // É a partir desse momento que o SLA da equipe começa a contar.
 // Se a equipe respondeu e o solicitante não voltou, retorna null (relógio parado).
+// Verifica se a equipe técnica (N2/Chatbot/AM) já respondeu pela primeira vez na thread.
+// Conta apenas mensagens "substanciais" (>15 caracteres) — ignora "boa tarde", "vou ver", etc.
+function hasFirstTeamResponse(messages?: Message[]): boolean {
+  if (!messages || messages.length < 2) return false;
+  // Ignora a primeira msg (geralmente do solicitante abrindo o chamado)
+  for (let i = 1; i < messages.length; i++) {
+    const m = messages[i];
+    const member = lookupMember(m.author_username);
+    if (!member.area || !RESOLUTIVE_AREAS.includes(member.area)) continue;
+    const content = (m.content || "").trim();
+    if (content.length >= 15) return true; // resposta técnica substancial
+  }
+  return false;
+}
+
 function lastRequesterMessageIso(messages?: Message[]): string | null {
   if (!messages || messages.length === 0) return null;
   // Procura de trás pra frente a primeira msg do solicitante (não-resolutiva)
@@ -151,6 +166,9 @@ type EnrichedRow = {
   minutes: number;
   priority: string | null;
   slaState: SlaState;
+  // tipo 1 = ainda não houve 1ª resposta (SLA aplicável)
+  // tipo 2 = já houve 1ª resposta, solicitante voltou (sem SLA)
+  awaitingType: "first_response" | "follow_up";
 };
 
 export function WaitingAlertBanner({ rows, messagesMap, onRowClick }: Props) {
@@ -174,36 +192,53 @@ export function WaitingAlertBanner({ rows, messagesMap, onRowClick }: Props) {
         const msgs = messagesMap[r.id];
         // Banner mostra apenas casos que aguardam retorno da equipe técnica (waiting_for=team_*)
         if (!isAwaitingTeam(r, msgs)) return null;
-        // O relógio do SLA conta desde a última msg do solicitante (sem resposta da equipe depois)
+        // O relógio conta desde a última msg do solicitante (sem resposta da equipe depois)
         const last = lastRequesterMessageIso(msgs);
-        if (!last) return null; // equipe já respondeu, relógio parado
+        if (!last) return null;
         const minutes = (now - new Date(last).getTime()) / 60000;
         if (!isFinite(minutes) || minutes < 0) return null;
         const priority = getPriority(r);
-        const slaState = getSlaState(minutes, priority);
-        return { row: r, minutes, priority, slaState };
+
+        // Determina o tipo:
+        // - "first_response" → equipe nunca respondeu de forma substancial (SLA aplicável)
+        // - "follow_up" → equipe já respondeu antes, solicitante voltou (sem SLA estourado)
+        const hadResponse = hasFirstTeamResponse(msgs);
+        const awaitingType: "first_response" | "follow_up" = hadResponse ? "follow_up" : "first_response";
+
+        // Casos do tipo "follow_up" sempre ficam neutros (ok) — não tem SLA aplicável
+        const slaState: SlaState = awaitingType === "follow_up" ? "ok" : getSlaState(minutes, priority);
+
+        return { row: r, minutes, priority, slaState, awaitingType };
       })
       .filter((x): x is EnrichedRow => !!x);
 
-    // Mostra apenas os que precisam de atenção (warn/critical/breached)
-    // Casos 'ok' não aparecem no banner pra não poluir
-    const attention = enriched
-      .filter((e) => e.slaState !== "ok")
+    // Tipo 1: casos aguardando 1ª resposta — todos aparecem (mesmo "ok") na seção de cima
+    // Tipo 2: casos em andamento esperando próxima resposta — ficam embaixo, sem SLA
+    const firstResponseGroup = enriched
+      .filter((e) => e.awaitingType === "first_response")
       .sort((a, b) => {
-        // Ordena por gravidade: breached > critical > warn
         const severity = { breached: 3, critical: 2, warn: 1, ok: 0 };
         const sa = severity[a.slaState];
         const sb = severity[b.slaState];
         if (sa !== sb) return sb - sa;
         return b.minutes - a.minutes;
-      })
-      .slice(0, 5);
+      });
 
+    const followUpGroup = enriched
+      .filter((e) => e.awaitingType === "follow_up")
+      .sort((a, b) => b.minutes - a.minutes);
+
+    // Concatena: 1ª resposta em cima, follow-up embaixo, limita ao top 10
+    const attention = [...firstResponseGroup, ...followUpGroup].slice(0, 10);
+
+    // Contadores SLA → APENAS tipo 1 (casos sem 1ª resposta)
     const counts = {
-      breached: enriched.filter((e) => e.slaState === "breached").length,
-      critical: enriched.filter((e) => e.slaState === "critical").length,
-      warn:     enriched.filter((e) => e.slaState === "warn").length,
+      breached: firstResponseGroup.filter((e) => e.slaState === "breached").length,
+      critical: firstResponseGroup.filter((e) => e.slaState === "critical").length,
+      warn:     firstResponseGroup.filter((e) => e.slaState === "warn").length,
       total:    enriched.length,
+      firstResponseCount: firstResponseGroup.length,
+      followUpCount: followUpGroup.length,
     };
 
     return { active: attention, stats: counts };
@@ -314,50 +349,69 @@ export function WaitingAlertBanner({ rows, messagesMap, onRowClick }: Props) {
       </div>
 
       <div className="flex flex-col">
-        {active.map(({ row, minutes, priority, slaState }) => {
-          const color = stateColor(slaState);
-          const label = stateLabel(slaState, priority, minutes);
+        {active.map(({ row, minutes, priority, slaState, awaitingType }, idx) => {
+          const isFollowUp = awaitingType === "follow_up";
+          // Para follow_up, tudo fica neutro (cor cinza). Para 1ª resposta, usa cor do SLA.
+          const color = isFollowUp ? "#94a3b8" : stateColor(slaState);
+          const label = isFollowUp
+            ? "Aguardando retorno do time (sem SLA)"
+            : stateLabel(slaState, priority, minutes);
+
+          // Detecta se é a primeira linha do grupo follow_up — adiciona separador acima
+          const prevType = idx > 0 ? active[idx - 1].awaitingType : null;
+          const showSeparator = isFollowUp && prevType === "first_response";
+
           return (
-            <button
-              key={row.id}
-              type="button"
-              onClick={() => onRowClick?.(row)}
-              className="flex items-center gap-3 px-2 py-2 rounded transition-colors text-left"
-              style={{ background: "transparent" }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.02)")}
-              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-            >
-              <span
-                className="font-mono text-[12px] font-semibold tabular-nums shrink-0"
-                style={{ color: "#256EFF", minWidth: 64 }}
-              >
-                #{row.idclinic || row.case_number || row.id}
-              </span>
-              <div className="flex-1 min-w-0">
-                <div
-                  className="text-[13px] text-foreground/90 truncate"
-                  title={row.thread_title || ""}
-                >
-                  {row.thread_title || "Sem título"}
+            <div key={row.id}>
+              {showSeparator && (
+                <div className="flex items-center gap-2 mt-3 mb-1 px-2">
+                  <div className="h-px flex-1 bg-border/40" />
+                  <span className="text-[9px] uppercase tracking-wider text-muted-foreground font-medium">
+                    Em andamento — aguardando próxima resposta
+                  </span>
+                  <div className="h-px flex-1 bg-border/40" />
                 </div>
-                {label && (
-                  <div
-                    className="text-[10px] tabular-nums mt-0.5"
-                    style={{ color }}
-                  >
-                    {label}
-                  </div>
-                )}
-              </div>
-              <span
-                className="text-[12px] font-bold tabular-nums shrink-0"
-                style={{ color, minWidth: 130, textAlign: "right" }}
+              )}
+              <button
+                type="button"
+                onClick={() => onRowClick?.(row)}
+                className="flex items-center gap-3 px-2 py-2 rounded transition-colors text-left w-full"
+                style={{ background: "transparent", opacity: isFollowUp ? 0.85 : 1 }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.02)")}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
               >
-                {fmtWaiting(minutes)}
-              </span>
-              <span className="shrink-0">{teamBadge(row.analysis?.waiting_for)}</span>
-              <span className="shrink-0">{priorityBadge(priority)}</span>
-            </button>
+                <span
+                  className="font-mono text-[12px] font-semibold tabular-nums shrink-0"
+                  style={{ color: "#256EFF", minWidth: 64 }}
+                >
+                  #{row.idclinic || row.case_number || row.id}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div
+                    className="text-[13px] text-foreground/90 truncate"
+                    title={row.thread_title || ""}
+                  >
+                    {row.thread_title || "Sem título"}
+                  </div>
+                  {label && (
+                    <div
+                      className="text-[10px] tabular-nums mt-0.5"
+                      style={{ color }}
+                    >
+                      {label}
+                    </div>
+                  )}
+                </div>
+                <span
+                  className="text-[12px] font-bold tabular-nums shrink-0"
+                  style={{ color, minWidth: 130, textAlign: "right" }}
+                >
+                  {fmtWaiting(minutes)}
+                </span>
+                <span className="shrink-0">{teamBadge(row.analysis?.waiting_for)}</span>
+                <span className="shrink-0">{priorityBadge(priority)}</span>
+              </button>
+            </div>
           );
         })}
       </div>
