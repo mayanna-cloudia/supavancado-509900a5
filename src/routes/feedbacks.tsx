@@ -358,6 +358,15 @@ function FeedbacksPage() {
 
   async function submitFeedback(caseRow: CaseRow, rating: Rating, reasons: string[] = [], comment = "") {
     const existing = feedbacks.find((f) => f.case_id === caseRow.id);
+
+    // Se clicar no mesmo rating que já estava → remove (toggle off)
+    if (existing && existing.rating === rating) {
+      await supabase.from("analysis_feedback").delete().eq("id", existing.id);
+      setFeedbacks((prev) => prev.filter((f) => f.id !== existing.id));
+      setBadPopup(null);
+      return;
+    }
+
     const payload = { case_id: caseRow.id, reviewer, rating, reasons, comment, updated_at: new Date().toISOString() };
 
     if (existing) {
