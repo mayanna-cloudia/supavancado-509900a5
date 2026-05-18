@@ -113,8 +113,8 @@ function listAvailablePeople(
     if (map.has(key)) return;
     const info = lookupMember(username);
     if (!info.area) return;
-    // Só inclui se for de área resolutiva
-    if (info.area !== "SuporteN2" && info.area !== "Chatbot" && info.area !== "AM") return;
+    // Apenas Suporte N2 (a métrica de "triagem" só faz sentido pra quem faz triagem)
+    if (info.area !== "SuporteN2") return;
     map.set(key, { username: key, name: info.name || username, area: info.area });
   };
 
@@ -146,17 +146,10 @@ function PersonPicker({
 }) {
   const [open, setOpen] = useState(false);
 
+  // Como só tem Suporte N2, não precisa agrupar — lista direto
   const grouped = useMemo(() => {
-    const order: Area[] = ["SuporteN2", "Chatbot", "AM"];
-    const groups: Record<string, typeof people> = {};
-    for (const p of people) {
-      const key = p.area || "Outros";
-      if (!groups[key]) groups[key] = [];
-      groups[key].push(p);
-    }
-    return order
-      .map((a) => ({ area: a, people: groups[a] || [] }))
-      .filter((g) => g.people.length > 0);
+    if (people.length === 0) return [];
+    return [{ area: "SuporteN2" as Area, people }];
   }, [people]);
 
   const selectedPerson = people.find((p) => p.username === selected);
