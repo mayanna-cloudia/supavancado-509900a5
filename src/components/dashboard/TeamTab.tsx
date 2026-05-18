@@ -63,8 +63,10 @@ function computePersonStats(
   rows: CaseRow[],
   messagesMap: Record<number, Message[]>,
 ): PersonStats {
-  const key = username.toLowerCase();
   const info = lookupMember(username);
+  // O banco salva "Leandro César" (nome real), não "leandcesar" (username).
+  // Comparamos por nome real, em minúsculas, pra evitar diferenças de capitalização.
+  const targetName = (info.name || username).toLowerCase();
   let resolvedEnd2End = 0;
   let triages = 0;
 
@@ -72,12 +74,12 @@ function computePersonStats(
     const a = r.analysis;
     if (!a) continue;
 
-    const resolverUser = (a.resolver_name || "").toLowerCase();
-    const firstUser = (a.first_responder_name || "").toLowerCase();
+    const resolverName = (a.resolver_name || "").toLowerCase();
+    const firstName = (a.first_responder_name || "").toLowerCase();
     const msgs = messagesMap[r.id];
 
-    const isResolver = a.resolved && resolverUser === key;
-    const isFirstResponder = firstUser === key;
+    const isResolver = a.resolved && resolverName === targetName;
+    const isFirstResponder = firstName === targetName;
 
     if (isResolver) {
       const otherTouched = hasOtherTeamParticipation(msgs, info.area);
@@ -87,7 +89,7 @@ function computePersonStats(
         // resolveu, mas outro time também atuou — conta como triagem
         triages++;
       }
-    } else if (isFirstResponder && a.resolved && resolverUser && resolverUser !== key) {
+    } else if (isFirstResponder && a.resolved && resolverName && resolverName !== targetName) {
       // ela abriu/respondeu primeiro, outro resolveu
       triages++;
     }
