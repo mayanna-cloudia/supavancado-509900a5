@@ -345,7 +345,7 @@ function FeedbacksPage() {
         .select("*, analysis:analyses(*)")
         .not("analysis", "is", null)
         .order("opened_at", { ascending: false })
-        .limit(500),
+        .limit(2000),
       supabase
         .from("analysis_feedback")
         .select("*")
