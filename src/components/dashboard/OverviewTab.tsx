@@ -61,12 +61,25 @@ export function OverviewTab({
     const total = rows.length;
     const resolved = rows.filter((r) => r.analysis?.resolved).length;
     const open = total - resolved;
-    const closed = rows.filter((r) => r.closed_at);
-    const durations = closed
-      .map((r) => (r.closed_at && r.opened_at ? (new Date(r.closed_at).getTime() - new Date(r.opened_at).getTime()) / 60000 : null))
-      .filter((x): x is number => x != null && x > 0);
+    // Tempo médio de resolução: só conta casos REALMENTE resolvidos
+    // (analysis.resolved = true) e exclui casos com status "fechado_inatividade".
+    // Outliers maiores que 30 dias (43200 min) são ignorados pra evitar inflar a média
+    // por casos esquecidos no Discord que foram fechados manualmente meses depois.
+    const OUTLIER_THRESHOLD_MIN = 30 * 24 * 60; // 30 dias
+
+    const trulyResolved = rows.filter((r) => {
+      if (!r.analysis?.resolved) return false;
+      if (!r.closed_at || !r.opened_at) return false;
+      if (r.status === "fechado_inatividade") return false;
+      return true;
+    });
+
+    const durations = trulyResolved
+      .map((r) => (new Date(r.closed_at!).getTime() - new Date(r.opened_at).getTime()) / 60000)
+      .filter((x) => x > 0 && x <= OUTLIER_THRESHOLD_MIN);
+
     const avg = durations.length ? durations.reduce((a, b) => a + b, 0) / durations.length : null;
-    return { total, resolved, open, avgMin: avg };
+    return { total, resolved, open, avgMin: avg, resolutionSampleSize: durations.length };
   }, [rows]);
 
   // Cases per week (chronological)
@@ -185,7 +198,12 @@ export function OverviewTab({
           hint={stats.total ? `${Math.round((stats.open / stats.total) * 100)}% de ${stats.total.toLocaleString("pt-BR")} casos` : undefined}
           accent="orange"
         />
-        <KpiCard label="Tempo médio resolução" value={fmtDuration(stats.avgMin)} accent="purple" />
+        <KpiCard
+          label="Tempo médio resolução"
+          value={fmtDuration(stats.avgMin)}
+          hint={stats.resolutionSampleSize > 0 ? `${stats.resolutionSampleSize.toLocaleString("pt-BR")} caso(s) considerado(s)` : "Sem dados no período"}
+          accent="purple"
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
