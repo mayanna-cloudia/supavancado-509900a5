@@ -98,20 +98,35 @@ function computePersonStats(
   return { resolvedEnd2End, triages, totalCases, pct };
 }
 
-// Lista de pessoas que aparecem como resolver ou first_responder
-function listAvailablePeople(rows: CaseRow[]): { username: string; name: string; area: Area | null }[] {
+// Lista de pessoas: TODOS de áreas resolutivas (N2 / Chatbot / AM) que participaram de qualquer caso
+function listAvailablePeople(
+  rows: CaseRow[],
+  messagesMap: Record<number, Message[]>,
+): { username: string; name: string; area: Area | null }[] {
   const map = new Map<string, { username: string; name: string; area: Area | null }>();
+
+  const addPerson = (username: string | null | undefined) => {
+    if (!username) return;
+    const key = username.toLowerCase();
+    if (map.has(key)) return;
+    const info = lookupMember(username);
+    if (!info.area) return;
+    // Só inclui se for de área resolutiva
+    if (info.area !== "SuporteN2" && info.area !== "Chatbot" && info.area !== "AM") return;
+    map.set(key, { username: key, name: info.name || username, area: info.area });
+  };
+
   for (const r of rows) {
-    const a = r.analysis;
-    if (!a) continue;
-    for (const u of [a.resolver_name, a.first_responder_name]) {
-      if (!u) continue;
-      const key = u.toLowerCase();
-      if (!map.has(key)) {
-        const info = lookupMember(u);
-        if (info.area) {
-          map.set(key, { username: key, name: info.name || u, area: info.area });
-        }
+    // Adiciona resolver e first_responder da análise
+    if (r.analysis) {
+      addPerson(r.analysis.resolver_name);
+      addPerson(r.analysis.first_responder_name);
+    }
+    // Adiciona qualquer pessoa que enviou mensagem na thread
+    const msgs = messagesMap[r.id];
+    if (msgs) {
+      for (const m of msgs) {
+        addPerson(m.author_username);
       }
     }
   }
@@ -247,7 +262,7 @@ function PerPersonSection({
   rows: CaseRow[];
   messagesMap: Record<number, Message[]>;
 }) {
-  const people = useMemo(() => listAvailablePeople(rows), [rows]);
+  const people = useMemo(() => listAvailablePeople(rows, messagesMap), [rows, messagesMap]);
   const [selected, setSelected] = useState<string | null>(null);
 
   const stats = useMemo(() => {
