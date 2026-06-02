@@ -40,8 +40,7 @@ function getWaitingFor(r: CaseRow, msgs: Message[] | undefined): WaitingTag {
   return "team_n2";
 }
 
-function lastActivityIso(r: CaseRow, msgs: Record<number, Message[]>): string | null {
-  const list = msgs[r.id];
+function lastActivityIso(r: CaseRow, list: Message[] | undefined): string | null {
   if (list && list.length) {
     return list[list.length - 1].sent_at;
   }

@@ -9,15 +9,14 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as IndexRouteImport } from './routes/index'
 import { Route as FeedbacksRouteImport } from './routes/feedbacks'
+import { Route as IndexRouteImport } from './routes/index'
 
 const FeedbacksRoute = FeedbacksRouteImport.update({
   id: '/feedbacks',
   path: '/feedbacks',
   getParentRoute: () => rootRouteImport,
 } as any)
-
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -39,10 +38,10 @@ export interface FileRoutesById {
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/feedbacks'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/feedbacks'
+  id: '__root__' | '/' | '/feedbacks'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -52,6 +51,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/feedbacks': {
+      id: '/feedbacks'
+      path: '/feedbacks'
+      fullPath: '/feedbacks'
+      preLoaderRoute: typeof FeedbacksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
