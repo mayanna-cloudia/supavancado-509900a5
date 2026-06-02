@@ -23,6 +23,34 @@ function Dashboard() {
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [selected, setSelected] = useState<CaseRow | null>(null);
 
+  // Aplica filtros via URL: ?idclinic=372&tab=cases&priority=P1&status=open&area=SuporteN2&q=texto
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const idclinic = params.get("idclinic");
+    const priority = params.get("priority") as Filters["priority"] | null;
+    const status = params.get("status") as Filters["status"] | null;
+    const area = params.get("area") as Filters["area"] | null;
+    const category = params.get("category");
+    const q = params.get("q") ?? params.get("search");
+    const tabParam = params.get("tab") as TabKey | null;
+
+    const patch: Partial<Filters> = {};
+    if (idclinic) patch.idclinic = idclinic;
+    if (priority && ["all", "P1", "P2", "P3"].includes(priority)) patch.priority = priority;
+    if (status && ["all", "open", "resolved"].includes(status)) patch.status = status;
+    if (area && ["all", "SuporteN2", "Chatbot", "AM", "unassigned"].includes(area)) patch.area = area;
+    if (category) patch.category = category;
+    if (q) patch.search = q;
+
+    if (Object.keys(patch).length > 0) {
+      setFilters((prev) => ({ ...prev, ...patch }));
+      if (!tabParam) setTab("cases");
+    }
+    if (tabParam) setTab(tabParam);
+  }, []);
+
+
   const { rows, messages, loading, error, lastEvent, refresh } = useCloudiaData();
 
   const filtered = useMemo(() => applyFilters(rows, filters), [rows, filters]);
