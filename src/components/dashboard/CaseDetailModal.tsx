@@ -7,9 +7,7 @@ import { ANALYZE_FN_URL, SUPABASE_ANON } from "@/lib/supabase";
 import { fmtDate, fmtDuration, priorityBadgeClass, diffMinutes, fmtFirstResponse, isWithinSLA, getPriority } from "@/lib/format";
 import { lookupMember, AREA_BADGE, AREA_LABEL, type Area } from "@/lib/team";
 import { cn } from "@/lib/utils";
-
-// Guild ID do servidor Cloudia no Discord
-const DISCORD_GUILD_ID = "763464035911073804";
+import { discordThreadUrl } from "@/lib/discord";
 
 export function CaseDetailModal({
   row, messages, onClose, onReanalyzed,
@@ -206,22 +204,20 @@ export function CaseDetailModal({
               {a?.analyzed_at && <>Última análise: {fmtDate(a.analyzed_at)}</>}
             </div>
             <div className="flex items-center gap-2">
-              {row.thread_id && /^\d{15,}$/.test(String(row.thread_id)) && (
-                <Button
-                  asChild
-                  variant="outline"
-                  className="border-border bg-transparent hover:bg-surface text-foreground"
+              <Button
+                asChild
+                variant="outline"
+                className="border-border bg-transparent hover:bg-surface text-foreground"
+              >
+                <a
+                  href={discordThreadUrl(row)}
+                  target="_blank"
+                  rel="noopener noreferrer"
                 >
-                  <a
-                    href={`https://discord.com/channels/${DISCORD_GUILD_ID}/${row.thread_id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                    Abrir no Discord
-                  </a>
-                </Button>
-              )}
+                  <ExternalLink className="h-4 w-4" />
+                  Abrir no Discord
+                </a>
+              </Button>
               <div className="flex flex-col items-end gap-1">
                 <Button
                   onClick={reanalyze}
