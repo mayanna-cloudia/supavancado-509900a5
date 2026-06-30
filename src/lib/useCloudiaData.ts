@@ -148,7 +148,9 @@ export function useCloudiaData() {
 
   // Build CaseRow[] enriched with analysis + first response
   const rows = useMemo<CaseRow[]>(() => {
-    return state.cases.map((c) => {
+    return state.cases
+      .filter((c) => !isTestCase(c))
+      .map((c) => {
       const analysis = state.analyses[c.id] || null;
       const msgs = state.messages[c.id] || [];
       // Prefer first_response_minutes from analyses table; fallback to computed from messages
