@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { supabase, type Case, type Analysis, type Message, type CaseRow } from "./supabase";
 import { diffMinutes } from "./format";
+import { isTestCase } from "./discord";
 
 type State = {
   cases: Case[];
