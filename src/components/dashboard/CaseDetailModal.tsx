@@ -7,9 +7,7 @@ import { ANALYZE_FN_URL, SUPABASE_ANON } from "@/lib/supabase";
 import { fmtDate, fmtDuration, priorityBadgeClass, diffMinutes, fmtFirstResponse, isWithinSLA, getPriority } from "@/lib/format";
 import { lookupMember, AREA_BADGE, AREA_LABEL, type Area } from "@/lib/team";
 import { cn } from "@/lib/utils";
-
-// Guild ID do servidor Cloudia no Discord
-const DISCORD_GUILD_ID = "763464035911073804";
+import { discordThreadUrl } from "@/lib/discord";
 
 export function CaseDetailModal({
   row, messages, onClose, onReanalyzed,
