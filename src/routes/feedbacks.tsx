@@ -42,14 +42,12 @@ export const Route = createFileRoute("/feedbacks")({
 // ─── TELA DE LOGIN ────────────────────────────────────────────────────────────
 
 function LoginScreen({ onLogin }: { onLogin: (reviewer: Reviewer) => void }) {
-  const [selected, setSelected] = useState<Reviewer | null>(null);
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
   function handleSubmit() {
-    if (!selected) { setError("Selecione quem você é."); return; }
     if (password !== PASSWORD) { setError("Senha incorreta."); return; }
-    onLogin(selected);
+    onLogin("Mayanna");
   }
 
   return (
