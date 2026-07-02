@@ -392,6 +392,7 @@ function AdminPage() {
 
         <div className="flex flex-col gap-4">
           <ReanalyzeOpenCard />
+          <FeedbacksCard />
         </div>
       </div>
     </div>
