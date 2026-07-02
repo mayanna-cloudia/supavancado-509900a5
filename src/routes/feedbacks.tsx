@@ -63,26 +63,26 @@ function LoginScreen({ onLogin }: { onLogin: (reviewer: Reviewer) => void }) {
         <p className="text-xs text-muted-foreground text-center mb-6">Acesso restrito ao Suporte N2</p>
 
         <div className="space-y-3">
-          <div>
-            <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium mb-2">Sou:</p>
-            <div className="flex gap-2">
-              {REVIEWERS.map((r) => (
-                <button
-                  key={r}
-                  type="button"
-                  onClick={() => setSelected(r)}
-                  className={cn(
-                    "flex-1 h-10 rounded-md border text-sm transition-colors",
-                    selected === r
-                      ? "bg-[rgba(37,110,255,0.15)] border-[#185FA5] text-[#5b9eff]"
-                      : "bg-surface border-border text-foreground hover:border-border/60"
-                  )}
-                >
-                  {r}
-                </button>
-              ))}
-            </div>
-          </div>
+          <input
+            type="password"
+            placeholder="Senha"
+            autoFocus
+            value={password}
+            onChange={(e) => { setPassword(e.target.value); setError(""); }}
+            onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+            className="w-full h-10 rounded-md border border-border bg-surface px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-[var(--brand-blue)]"
+          />
+
+          {error && <p className="text-xs text-destructive">{error}</p>}
+
+          <button
+            type="button"
+            onClick={handleSubmit}
+            className="w-full h-10 rounded-md bg-[#256EFF] text-white text-sm font-medium hover:bg-[#1f5dd9] transition-colors"
+          >
+            Entrar
+          </button>
+        </div>
 
           <input
             type="password"
