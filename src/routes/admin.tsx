@@ -105,7 +105,7 @@ function ReanalyzeOpenCard() {
       if (a.summary && a.summary.trim()) analyzedSet.add(a.case_id);
     }
     const filtered = ((casesData as Case[]) || [])
-      .filter((c) => !isTestCase(c as unknown as { thread_title?: string | null }))
+      .filter((c) => !isTestCase({ thread_title: c.thread_title ?? null }))
       .map((c) => ({ ...c, hasAnalysis: analyzedSet.has(c.id) }));
     setOpenCases(filtered);
     setLoadingList(false);
