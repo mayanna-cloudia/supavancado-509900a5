@@ -7,8 +7,8 @@ import { cn } from "@/lib/utils";
 
 // ─── CONSTANTES ──────────────────────────────────────────────────────────────
 
-const PASSWORD = "@Cloudia01";
-const REVIEWERS = ["Mayanna", "Augusto"] as const;
+const PASSWORD = "May0401@";
+const REVIEWERS = ["Mayanna"] as const;
 type Reviewer = typeof REVIEWERS[number];
 type Rating = "good" | "bad";
 
