@@ -83,26 +83,6 @@ function LoginScreen({ onLogin }: { onLogin: (reviewer: Reviewer) => void }) {
             Entrar
           </button>
         </div>
-
-          <input
-            type="password"
-            placeholder="Senha"
-            value={password}
-            onChange={(e) => { setPassword(e.target.value); setError(""); }}
-            onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-            className="w-full h-10 rounded-md border border-border bg-surface px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-[var(--brand-blue)]"
-          />
-
-          {error && <p className="text-xs text-destructive">{error}</p>}
-
-          <button
-            type="button"
-            onClick={handleSubmit}
-            className="w-full h-10 rounded-md bg-[#256EFF] text-white text-sm font-medium hover:bg-[#1f5dd9] transition-colors"
-          >
-            Entrar
-          </button>
-        </div>
       </div>
     </div>
   );
