@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase, ANALYZE_FN_URL, SUPABASE_ANON, type Case, type Analysis } from "@/lib/supabase";
 import { isTestCase } from "@/lib/discord";
-import { Lock, ArrowLeft, Sparkles, Loader2, X, Settings, RefreshCw } from "lucide-react";
+import { Lock, ArrowLeft, Sparkles, Loader2, X, Settings, RefreshCw, ThumbsUp, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -338,6 +338,41 @@ function Stat({ label, value, accent }: { label: string; value: number; accent?:
   );
 }
 
+// ─── FEEDBACKS CARD ───────────────────────────────────────────────────────
+function FeedbacksCard() {
+  return (
+    <div className="rounded-lg border border-border bg-card p-5">
+      <div className="flex items-start gap-3 mb-4">
+        <div className="w-9 h-9 rounded-md bg-[rgba(16,185,129,0.15)] flex items-center justify-center shrink-0">
+          <ThumbsUp className="h-4 w-4 text-[#10b981]" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h2 className="text-sm font-medium text-foreground">Validação de análises da IA</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Página dedicada para revisar caso a caso as análises geradas pela IA. Você aprova
+            com <span className="text-foreground/90">👍</span> ou reporta com <span className="text-foreground/90">👎</span> indicando
+            o que está errado (resolvedor, categoria, resumo, prioridade, status). Cada feedback
+            fica salvo por revisor e alimenta o cálculo de qualidade da IA ao longo do tempo.
+          </p>
+          <ul className="text-[11px] text-muted-foreground mt-2 space-y-0.5 list-disc pl-4">
+            <li>Filtros por pendentes, aprovados e reportados</li>
+            <li>Toggle: clicar de novo no mesmo botão remove o feedback</li>
+            <li>Acesso restrito — hoje somente Mayanna</li>
+          </ul>
+        </div>
+      </div>
+
+      <Link
+        to="/feedbacks"
+        className="inline-flex items-center gap-1.5 rounded-md bg-[#10b981] px-3.5 py-2 text-xs font-medium text-white hover:bg-[#0ea371] transition-colors"
+      >
+        Abrir feedbacks
+        <ArrowRight className="h-3.5 w-3.5" />
+      </Link>
+    </div>
+  );
+}
+
 // ─── PAGE ─────────────────────────────────────────────────────────────────
 function AdminPage() {
   const [authed, setAuthed] = useState(false);
@@ -392,6 +427,7 @@ function AdminPage() {
 
         <div className="flex flex-col gap-4">
           <ReanalyzeOpenCard />
+          <FeedbacksCard />
         </div>
       </div>
     </div>
