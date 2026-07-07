@@ -35,6 +35,8 @@ type Feedback = {
 };
 
 type FilterType = "pending" | "all" | "good" | "bad";
+type StatusFilter = "all" | "open" | "resolved";
+type DateFilter = "any" | "7d" | "30d" | "90d" | "custom";
 
 // ─── ROTA ────────────────────────────────────────────────────────────────────
 
