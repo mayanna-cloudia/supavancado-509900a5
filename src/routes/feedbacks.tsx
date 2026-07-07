@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabase";
 import type { CaseRow } from "@/lib/supabase";
 import {
   ThumbsUp, Lock, ArrowLeft, CheckCircle2, XCircle,
-  AlertCircle, Check, Filter, ChevronDown,
+  AlertCircle, Check, Filter, ChevronDown, Calendar, Circle, CircleCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -35,6 +35,8 @@ type Feedback = {
 };
 
 type FilterType = "pending" | "all" | "good" | "bad";
+type StatusFilter = "all" | "open" | "resolved";
+type DateFilter = "any" | "7d" | "30d" | "90d" | "custom";
 
 // ─── ROTA ────────────────────────────────────────────────────────────────────
 
@@ -247,6 +249,10 @@ function FeedbacksPage() {
   const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState<FilterType>("pending");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [dateFilter, setDateFilter] = useState<DateFilter>("any");
+  const [customFrom, setCustomFrom] = useState<string>("");
+  const [customTo, setCustomTo] = useState<string>("");
   const [activeId, setActiveId] = useState<number | null>(null);
   const [comment, setComment] = useState("");
   const [showBadModal, setShowBadModal] = useState(false);
@@ -282,16 +288,42 @@ function FeedbacksPage() {
     return { total, validated, good, bad, pending, pct };
   }, [cases, feedbacks]);
 
+  const dateBounds = useMemo(() => {
+    const now = Date.now();
+    if (dateFilter === "7d") return { from: now - 7 * 86400000, to: Infinity };
+    if (dateFilter === "30d") return { from: now - 30 * 86400000, to: Infinity };
+    if (dateFilter === "90d") return { from: now - 90 * 86400000, to: Infinity };
+    if (dateFilter === "custom") {
+      const from = customFrom ? new Date(customFrom + "T00:00:00").getTime() : -Infinity;
+      const to = customTo ? new Date(customTo + "T23:59:59").getTime() : Infinity;
+      return { from, to };
+    }
+    return { from: -Infinity, to: Infinity };
+  }, [dateFilter, customFrom, customTo]);
+
   const filtered = useMemo(() => {
     return cases.filter((c) => {
       if (!c.analysis) return false;
       const fb = myFeedbackMap.get(c.id);
-      if (filter === "pending") return !fb;
-      if (filter === "good") return fb?.rating === "good";
-      if (filter === "bad") return fb?.rating === "bad";
+      if (filter === "pending" && fb) return false;
+      if (filter === "good" && fb?.rating !== "good") return false;
+      if (filter === "bad" && fb?.rating !== "bad") return false;
+
+      // Status (aberto / resolvido) — usa a análise da IA como fonte
+      if (statusFilter !== "all") {
+        const resolved = !!c.analysis?.resolved;
+        if (statusFilter === "open" && resolved) return false;
+        if (statusFilter === "resolved" && !resolved) return false;
+      }
+
+      // Data (opened_at)
+      if (dateFilter !== "any") {
+        const t = c.opened_at ? new Date(c.opened_at).getTime() : 0;
+        if (t < dateBounds.from || t > dateBounds.to) return false;
+      }
       return true;
     });
-  }, [cases, myFeedbackMap, filter]);
+  }, [cases, myFeedbackMap, filter, statusFilter, dateFilter, dateBounds]);
 
   // Auto-select first
   useEffect(() => {
@@ -458,6 +490,89 @@ function FeedbacksPage() {
                 <div><span className="text-white font-medium">{stats.validated}</span>/{stats.total}</div>
                 <div className="text-emerald-400">{stats.good} 👍</div>
               </div>
+            </div>
+          </div>
+
+          {/* Secondary filter bar */}
+          <div className="px-6 py-2.5 border-b border-zinc-800 bg-zinc-900/30 flex items-center gap-4 flex-wrap">
+            {/* Status pills */}
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold mr-1">Status</span>
+              {([
+                { k: "all" as StatusFilter, label: "Todos", icon: null },
+                { k: "open" as StatusFilter, label: "Em aberto", icon: <Circle className="h-3 w-3" /> },
+                { k: "resolved" as StatusFilter, label: "Resolvidos", icon: <CircleCheck className="h-3 w-3" /> },
+              ]).map(({ k, label, icon }) => (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => setStatusFilter(k)}
+                  className={cn(
+                    "inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium border transition-colors",
+                    statusFilter === k
+                      ? k === "open"
+                        ? "bg-amber-500/15 border-amber-500/40 text-amber-300"
+                        : k === "resolved"
+                        ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-300"
+                        : "bg-[#256EFF]/15 border-[#256EFF]/40 text-[#5b9eff]"
+                      : "bg-transparent border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700"
+                  )}
+                >
+                  {icon}
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <div className="h-5 w-px bg-zinc-800" />
+
+            {/* Date presets */}
+            <div className="flex items-center gap-1">
+              <Calendar className="h-3 w-3 text-zinc-500" />
+              <span className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold mr-1">Data</span>
+              {([
+                { k: "any" as DateFilter, label: "Qualquer" },
+                { k: "7d" as DateFilter, label: "7 dias" },
+                { k: "30d" as DateFilter, label: "30 dias" },
+                { k: "90d" as DateFilter, label: "90 dias" },
+                { k: "custom" as DateFilter, label: "Personalizado" },
+              ]).map(({ k, label }) => (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => setDateFilter(k)}
+                  className={cn(
+                    "px-2.5 py-1 rounded-md text-[11px] font-medium border transition-colors",
+                    dateFilter === k
+                      ? "bg-[#256EFF]/15 border-[#256EFF]/40 text-[#5b9eff]"
+                      : "bg-transparent border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700"
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {dateFilter === "custom" && (
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="date"
+                  value={customFrom}
+                  onChange={(e) => setCustomFrom(e.target.value)}
+                  className="h-7 rounded-md border border-zinc-800 bg-zinc-950 px-2 text-[11px] text-zinc-200 focus:outline-none focus:border-[#256EFF]"
+                />
+                <span className="text-[11px] text-zinc-500">até</span>
+                <input
+                  type="date"
+                  value={customTo}
+                  onChange={(e) => setCustomTo(e.target.value)}
+                  className="h-7 rounded-md border border-zinc-800 bg-zinc-950 px-2 text-[11px] text-zinc-200 focus:outline-none focus:border-[#256EFF]"
+                />
+              </div>
+            )}
+
+            <div className="ml-auto text-[11px] text-zinc-500">
+              <span className="text-white font-medium tabular-nums">{filtered.length}</span> caso(s)
             </div>
           </div>
 
