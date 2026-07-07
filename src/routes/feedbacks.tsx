@@ -288,16 +288,42 @@ function FeedbacksPage() {
     return { total, validated, good, bad, pending, pct };
   }, [cases, feedbacks]);
 
+  const dateBounds = useMemo(() => {
+    const now = Date.now();
+    if (dateFilter === "7d") return { from: now - 7 * 86400000, to: Infinity };
+    if (dateFilter === "30d") return { from: now - 30 * 86400000, to: Infinity };
+    if (dateFilter === "90d") return { from: now - 90 * 86400000, to: Infinity };
+    if (dateFilter === "custom") {
+      const from = customFrom ? new Date(customFrom + "T00:00:00").getTime() : -Infinity;
+      const to = customTo ? new Date(customTo + "T23:59:59").getTime() : Infinity;
+      return { from, to };
+    }
+    return { from: -Infinity, to: Infinity };
+  }, [dateFilter, customFrom, customTo]);
+
   const filtered = useMemo(() => {
     return cases.filter((c) => {
       if (!c.analysis) return false;
       const fb = myFeedbackMap.get(c.id);
-      if (filter === "pending") return !fb;
-      if (filter === "good") return fb?.rating === "good";
-      if (filter === "bad") return fb?.rating === "bad";
+      if (filter === "pending" && fb) return false;
+      if (filter === "good" && fb?.rating !== "good") return false;
+      if (filter === "bad" && fb?.rating !== "bad") return false;
+
+      // Status (aberto / resolvido) — usa a análise da IA como fonte
+      if (statusFilter !== "all") {
+        const resolved = !!c.analysis?.resolved;
+        if (statusFilter === "open" && resolved) return false;
+        if (statusFilter === "resolved" && !resolved) return false;
+      }
+
+      // Data (opened_at)
+      if (dateFilter !== "any") {
+        const t = c.opened_at ? new Date(c.opened_at).getTime() : 0;
+        if (t < dateBounds.from || t > dateBounds.to) return false;
+      }
       return true;
     });
-  }, [cases, myFeedbackMap, filter]);
+  }, [cases, myFeedbackMap, filter, statusFilter, dateFilter, dateBounds]);
 
   // Auto-select first
   useEffect(() => {
