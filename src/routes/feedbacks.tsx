@@ -637,6 +637,33 @@ function FeedbacksPage() {
             </div>
           </div>
 
+          {/* Search bar */}
+          <div className="px-6 py-2.5 border-b border-zinc-800 bg-zinc-900/20 flex items-center gap-2">
+            <div className="relative flex-1 max-w-xl">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-500" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar por # do caso, título da thread ou texto de mensagem…"
+                className="w-full h-8 pl-8 pr-8 rounded-md border border-zinc-800 bg-zinc-950 text-xs text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-[#256EFF]"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white"
+                  aria-label="Limpar busca"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+            {searchingMessages && (
+              <span className="text-[10px] text-zinc-500">buscando mensagens…</span>
+            )}
+          </div>
+
           {/* Body split */}
           <div className="flex flex-1 overflow-hidden">
             {/* Sidebar */}
@@ -648,11 +675,13 @@ function FeedbacksPage() {
                   <div className="text-center py-12 px-4">
                     <CheckCircle2 className="h-8 w-8 text-zinc-700 mx-auto mb-2" />
                     <p className="text-xs text-zinc-400">
-                      {filter === "pending" ? "Tudo validado!" : "Nenhum caso."}
+                      {debouncedSearch
+                        ? "Nenhum caso encontrado."
+                        : filter === "pending" ? "Tudo validado!" : "Nenhum caso."}
                     </p>
                   </div>
                 ) : (
-                  filtered.map((c) => (
+                  pageItems.map((c) => (
                     <QueueItem
                       key={c.id}
                       caseRow={c}
@@ -663,7 +692,36 @@ function FeedbacksPage() {
                   ))
                 )}
               </div>
+
+              {/* Pagination footer */}
+              {filtered.length > PAGE_SIZE && (
+                <div className="border-t border-zinc-800 bg-zinc-900/60 px-3 py-2 flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    disabled={currentPage <= 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    className="inline-flex items-center gap-1 rounded border border-zinc-800 bg-zinc-950 px-2 py-1 text-[11px] text-zinc-300 hover:text-white hover:border-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <ChevronLeft className="h-3 w-3" /> Ant.
+                  </button>
+                  <span className="text-[11px] text-zinc-400 tabular-nums">
+                    {currentPage}/{totalPages}
+                    <span className="text-zinc-600 ml-1">
+                      · {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filtered.length)} de {filtered.length}
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    disabled={currentPage >= totalPages}
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    className="inline-flex items-center gap-1 rounded border border-zinc-800 bg-zinc-950 px-2 py-1 text-[11px] text-zinc-300 hover:text-white hover:border-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Próx. <ChevronRight className="h-3 w-3" />
+                  </button>
+                </div>
+              )}
             </div>
+
 
             {/* Detail */}
             <div className="flex-1 flex flex-col bg-zinc-950/30 min-w-0">
