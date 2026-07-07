@@ -12,7 +12,6 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as FeedbacksRouteImport } from './routes/feedbacks'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as ApiPublicSyncDiscordRouteImport } from './routes/api/public/sync-discord'
 
 const FeedbacksRoute = FeedbacksRouteImport.update({
   id: '/feedbacks',
@@ -29,44 +28,35 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiPublicSyncDiscordRoute = ApiPublicSyncDiscordRouteImport.update({
-  id: '/api/public/sync-discord',
-  path: '/api/public/sync-discord',
-  getParentRoute: () => rootRouteImport,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/feedbacks': typeof FeedbacksRoute
-  '/api/public/sync-discord': typeof ApiPublicSyncDiscordRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/feedbacks': typeof FeedbacksRoute
-  '/api/public/sync-discord': typeof ApiPublicSyncDiscordRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/feedbacks': typeof FeedbacksRoute
-  '/api/public/sync-discord': typeof ApiPublicSyncDiscordRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/admin' | '/feedbacks' | '/api/public/sync-discord'
+  fullPaths: '/' | '/admin' | '/feedbacks'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin' | '/feedbacks' | '/api/public/sync-discord'
-  id: '__root__' | '/' | '/admin' | '/feedbacks' | '/api/public/sync-discord'
+  to: '/' | '/admin' | '/feedbacks'
+  id: '__root__' | '/' | '/admin' | '/feedbacks'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
   FeedbacksRoute: typeof FeedbacksRoute
-  ApiPublicSyncDiscordRoute: typeof ApiPublicSyncDiscordRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -92,13 +82,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/public/sync-discord': {
-      id: '/api/public/sync-discord'
-      path: '/api/public/sync-discord'
-      fullPath: '/api/public/sync-discord'
-      preLoaderRoute: typeof ApiPublicSyncDiscordRouteImport
-      parentRoute: typeof rootRouteImport
-    }
   }
 }
 
@@ -106,7 +89,6 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
   FeedbacksRoute: FeedbacksRoute,
-  ApiPublicSyncDiscordRoute: ApiPublicSyncDiscordRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
