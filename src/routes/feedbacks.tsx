@@ -5,8 +5,11 @@ import type { CaseRow } from "@/lib/supabase";
 import {
   ThumbsUp, Lock, ArrowLeft, CheckCircle2, XCircle,
   AlertCircle, Check, Filter, ChevronDown, Calendar, Circle, CircleCheck,
+  Search, X, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+const PAGE_SIZE = 25;
 
 // ─── CONSTANTES ──────────────────────────────────────────────────────────────
 
