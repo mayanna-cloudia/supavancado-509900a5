@@ -493,6 +493,89 @@ function FeedbacksPage() {
             </div>
           </div>
 
+          {/* Secondary filter bar */}
+          <div className="px-6 py-2.5 border-b border-zinc-800 bg-zinc-900/30 flex items-center gap-4 flex-wrap">
+            {/* Status pills */}
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold mr-1">Status</span>
+              {([
+                { k: "all" as StatusFilter, label: "Todos", icon: null },
+                { k: "open" as StatusFilter, label: "Em aberto", icon: <Circle className="h-3 w-3" /> },
+                { k: "resolved" as StatusFilter, label: "Resolvidos", icon: <CircleCheck className="h-3 w-3" /> },
+              ]).map(({ k, label, icon }) => (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => setStatusFilter(k)}
+                  className={cn(
+                    "inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium border transition-colors",
+                    statusFilter === k
+                      ? k === "open"
+                        ? "bg-amber-500/15 border-amber-500/40 text-amber-300"
+                        : k === "resolved"
+                        ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-300"
+                        : "bg-[#256EFF]/15 border-[#256EFF]/40 text-[#5b9eff]"
+                      : "bg-transparent border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700"
+                  )}
+                >
+                  {icon}
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <div className="h-5 w-px bg-zinc-800" />
+
+            {/* Date presets */}
+            <div className="flex items-center gap-1">
+              <Calendar className="h-3 w-3 text-zinc-500" />
+              <span className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold mr-1">Data</span>
+              {([
+                { k: "any" as DateFilter, label: "Qualquer" },
+                { k: "7d" as DateFilter, label: "7 dias" },
+                { k: "30d" as DateFilter, label: "30 dias" },
+                { k: "90d" as DateFilter, label: "90 dias" },
+                { k: "custom" as DateFilter, label: "Personalizado" },
+              ]).map(({ k, label }) => (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => setDateFilter(k)}
+                  className={cn(
+                    "px-2.5 py-1 rounded-md text-[11px] font-medium border transition-colors",
+                    dateFilter === k
+                      ? "bg-[#256EFF]/15 border-[#256EFF]/40 text-[#5b9eff]"
+                      : "bg-transparent border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700"
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {dateFilter === "custom" && (
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="date"
+                  value={customFrom}
+                  onChange={(e) => setCustomFrom(e.target.value)}
+                  className="h-7 rounded-md border border-zinc-800 bg-zinc-950 px-2 text-[11px] text-zinc-200 focus:outline-none focus:border-[#256EFF]"
+                />
+                <span className="text-[11px] text-zinc-500">até</span>
+                <input
+                  type="date"
+                  value={customTo}
+                  onChange={(e) => setCustomTo(e.target.value)}
+                  className="h-7 rounded-md border border-zinc-800 bg-zinc-950 px-2 text-[11px] text-zinc-200 focus:outline-none focus:border-[#256EFF]"
+                />
+              </div>
+            )}
+
+            <div className="ml-auto text-[11px] text-zinc-500">
+              <span className="text-white font-medium tabular-nums">{filtered.length}</span> caso(s)
+            </div>
+          </div>
+
           {/* Body split */}
           <div className="flex flex-1 overflow-hidden">
             {/* Sidebar */}
