@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabase";
 import type { CaseRow } from "@/lib/supabase";
 import {
   ThumbsUp, Lock, ArrowLeft, CheckCircle2, XCircle,
-  AlertCircle, Check, Filter, ChevronDown,
+  AlertCircle, Check, Filter, ChevronDown, Calendar, Circle, CircleCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
