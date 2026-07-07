@@ -449,6 +449,13 @@ function SyncDiscordCard() {
         </div>
       </div>
 
+      {notice && (
+        <div className="mb-4 flex items-start gap-2 rounded-md border border-[#f59e0b]/30 bg-[#f59e0b]/10 px-3 py-2 text-xs text-[#f59e0b]">
+          <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+          <span className="leading-relaxed">{notice}</span>
+        </div>
+      )}
+
       {/* Últimos números */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
         <SyncStat
