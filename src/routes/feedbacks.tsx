@@ -260,9 +260,40 @@ function FeedbacksPage() {
   const [comment, setComment] = useState("");
   const [showBadModal, setShowBadModal] = useState(false);
   const [showFilterMenu, setShowFilterMenu] = useState(false);
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [messageMatchIds, setMessageMatchIds] = useState<Set<number> | null>(null);
+  const [searchingMessages, setSearchingMessages] = useState(false);
+  const [page, setPage] = useState(1);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => { if (reviewer) loadData(); }, [reviewer]);
+
+  // Debounce search
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  // Query message content when search changes
+  useEffect(() => {
+    if (!debouncedSearch) { setMessageMatchIds(null); return; }
+    let cancelled = false;
+    setSearchingMessages(true);
+    (async () => {
+      const { data } = await supabase
+        .from("messages")
+        .select("case_id")
+        .ilike("content", `%${debouncedSearch}%`)
+        .limit(3000);
+      if (cancelled) return;
+      const s = new Set<number>();
+      for (const r of (data ?? []) as { case_id: number }[]) s.add(r.case_id);
+      setMessageMatchIds(s);
+      setSearchingMessages(false);
+    })();
+    return () => { cancelled = true; };
+  }, [debouncedSearch]);
 
   async function loadData() {
     setLoading(true);
