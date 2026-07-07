@@ -650,6 +650,7 @@ function AdminPage() {
 
         <div className="flex flex-col gap-4">
           <ReanalyzeOpenCard />
+          <SyncDiscordCard />
           <FeedbacksCard />
         </div>
       </div>
