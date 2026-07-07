@@ -341,7 +341,6 @@ function Stat({ label, value, accent }: { label: string; value: number; accent?:
 }
 
 // ─── SYNC DISCORD CARD ────────────────────────────────────────────────────
-const SYNC_FN_URL = ANALYZE_FN_URL.replace(/analyze-case$/, "sync-discord-threads");
 
 type SyncStatus = { started_at: string; threads_checked: number; cases_archived: number; errors: number };
 
@@ -365,6 +364,7 @@ function formatFull(iso: string): string {
 function SyncDiscordCard() {
   const [runs, setRuns] = useState<SyncRun[]>([]);
   const [running, setRunning] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => { setRuns(loadSyncRuns()); }, []);
 
@@ -381,28 +381,37 @@ function SyncDiscordCard() {
 
   async function runSync() {
     setRunning(true);
+    setNotice(null);
     const started_at = new Date().toISOString();
     try {
-      const res = await fetch(SYNC_FN_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${SUPABASE_ANON}` },
-        body: JSON.stringify({ dry_run: false }),
-      });
-      if (!res.ok) {
-        const txt = await res.text().catch(() => "");
-        throw new Error(`HTTP ${res.status} — ${txt || "sync function não configurada"}`);
+      const data = await syncDiscordThreads();
+      if (!data.ok && data.error === "not_configured") {
+        // Não conte como falha — apenas mostre aviso de configuração.
+        setNotice(data.message ?? "Sync ainda não configurado.");
+        toast(data.message ?? "Sync ainda não configurado.", { duration: 5000 });
+      } else if (!data.ok) {
+        const run = pushSyncRun({
+          started_at,
+          finished_at: new Date().toISOString(),
+          threads_checked: data.threads_checked,
+          cases_archived: data.cases_archived,
+          errors: Math.max(1, data.errors),
+          status: "failed",
+        });
+        setRuns((prev) => [run, ...prev].slice(0, 20));
+        toast.error(data.message ?? "Falha ao sincronizar");
+      } else {
+        const run = pushSyncRun({
+          started_at,
+          finished_at: new Date().toISOString(),
+          threads_checked: data.threads_checked,
+          cases_archived: data.cases_archived,
+          errors: data.errors,
+          status: data.errors > 0 ? "partial" : "success",
+        });
+        setRuns((prev) => [run, ...prev].slice(0, 20));
+        toast.success(`Sync concluído — ${run.threads_checked} threads · ${run.cases_archived} arquivados`);
       }
-      const data = (await res.json()) as Partial<SyncStatus>;
-      const run = pushSyncRun({
-        started_at,
-        finished_at: new Date().toISOString(),
-        threads_checked: Number(data.threads_checked ?? 0),
-        cases_archived: Number(data.cases_archived ?? 0),
-        errors: Number(data.errors ?? 0),
-        status: (data.errors ?? 0) > 0 ? "partial" : "success",
-      });
-      setRuns((prev) => [run, ...prev].slice(0, 20));
-      toast.success(`Sync concluído — ${run.threads_checked} threads · ${run.cases_archived} arquivados`);
     } catch (err) {
       const run = pushSyncRun({
         started_at,
