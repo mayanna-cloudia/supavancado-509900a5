@@ -336,6 +336,7 @@ function FeedbacksPage() {
   }, [dateFilter, customFrom, customTo]);
 
   const filtered = useMemo(() => {
+    const q = debouncedSearch.toLowerCase();
     return cases.filter((c) => {
       if (!c.analysis) return false;
       const fb = myFeedbackMap.get(c.id);
@@ -343,21 +344,47 @@ function FeedbacksPage() {
       if (filter === "good" && fb?.rating !== "good") return false;
       if (filter === "bad" && fb?.rating !== "bad") return false;
 
-      // Status (aberto / resolvido) — usa a análise da IA como fonte
       if (statusFilter !== "all") {
         const resolved = !!c.analysis?.resolved;
         if (statusFilter === "open" && resolved) return false;
         if (statusFilter === "resolved" && !resolved) return false;
       }
 
-      // Data (opened_at)
       if (dateFilter !== "any") {
         const t = c.opened_at ? new Date(c.opened_at).getTime() : 0;
         if (t < dateBounds.from || t > dateBounds.to) return false;
       }
+
+      if (q) {
+        const title = (c.thread_title || "").toLowerCase();
+        const idc = String(c.idclinic ?? c.id).toLowerCase();
+        const summary = (c.analysis?.summary || "").toLowerCase();
+        const inMsg = messageMatchIds?.has(c.id) ?? false;
+        if (!title.includes(q) && !idc.includes(q) && !summary.includes(q) && !inMsg) return false;
+      }
+
       return true;
     });
-  }, [cases, myFeedbackMap, filter, statusFilter, dateFilter, dateBounds]);
+  }, [cases, myFeedbackMap, filter, statusFilter, dateFilter, dateBounds, debouncedSearch, messageMatchIds]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => { setPage(1); }, [filter, statusFilter, dateFilter, debouncedSearch, customFrom, customTo]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pageItems = useMemo(
+    () => filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
+    [filtered, currentPage],
+  );
+
+  // Keep active in view: if activeId isn't on current page, jump to its page
+  useEffect(() => {
+    if (activeId == null) return;
+    const idx = filtered.findIndex((c) => c.id === activeId);
+    if (idx < 0) return;
+    const targetPage = Math.floor(idx / PAGE_SIZE) + 1;
+    if (targetPage !== currentPage) setPage(targetPage);
+  }, [activeId, filtered, currentPage]);
 
   // Auto-select first
   useEffect(() => {
