@@ -5,8 +5,11 @@ import type { CaseRow } from "@/lib/supabase";
 import {
   ThumbsUp, Lock, ArrowLeft, CheckCircle2, XCircle,
   AlertCircle, Check, Filter, ChevronDown, Calendar, Circle, CircleCheck,
+  Search, X, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+const PAGE_SIZE = 25;
 
 // ─── CONSTANTES ──────────────────────────────────────────────────────────────
 
@@ -257,9 +260,40 @@ function FeedbacksPage() {
   const [comment, setComment] = useState("");
   const [showBadModal, setShowBadModal] = useState(false);
   const [showFilterMenu, setShowFilterMenu] = useState(false);
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [messageMatchIds, setMessageMatchIds] = useState<Set<number> | null>(null);
+  const [searchingMessages, setSearchingMessages] = useState(false);
+  const [page, setPage] = useState(1);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => { if (reviewer) loadData(); }, [reviewer]);
+
+  // Debounce search
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  // Query message content when search changes
+  useEffect(() => {
+    if (!debouncedSearch) { setMessageMatchIds(null); return; }
+    let cancelled = false;
+    setSearchingMessages(true);
+    (async () => {
+      const { data } = await supabase
+        .from("messages")
+        .select("case_id")
+        .ilike("content", `%${debouncedSearch}%`)
+        .limit(3000);
+      if (cancelled) return;
+      const s = new Set<number>();
+      for (const r of (data ?? []) as { case_id: number }[]) s.add(r.case_id);
+      setMessageMatchIds(s);
+      setSearchingMessages(false);
+    })();
+    return () => { cancelled = true; };
+  }, [debouncedSearch]);
 
   async function loadData() {
     setLoading(true);
@@ -302,6 +336,7 @@ function FeedbacksPage() {
   }, [dateFilter, customFrom, customTo]);
 
   const filtered = useMemo(() => {
+    const q = debouncedSearch.toLowerCase();
     return cases.filter((c) => {
       if (!c.analysis) return false;
       const fb = myFeedbackMap.get(c.id);
@@ -309,21 +344,47 @@ function FeedbacksPage() {
       if (filter === "good" && fb?.rating !== "good") return false;
       if (filter === "bad" && fb?.rating !== "bad") return false;
 
-      // Status (aberto / resolvido) — usa a análise da IA como fonte
       if (statusFilter !== "all") {
         const resolved = !!c.analysis?.resolved;
         if (statusFilter === "open" && resolved) return false;
         if (statusFilter === "resolved" && !resolved) return false;
       }
 
-      // Data (opened_at)
       if (dateFilter !== "any") {
         const t = c.opened_at ? new Date(c.opened_at).getTime() : 0;
         if (t < dateBounds.from || t > dateBounds.to) return false;
       }
+
+      if (q) {
+        const title = (c.thread_title || "").toLowerCase();
+        const idc = String(c.idclinic ?? c.id).toLowerCase();
+        const summary = (c.analysis?.summary || "").toLowerCase();
+        const inMsg = messageMatchIds?.has(c.id) ?? false;
+        if (!title.includes(q) && !idc.includes(q) && !summary.includes(q) && !inMsg) return false;
+      }
+
       return true;
     });
-  }, [cases, myFeedbackMap, filter, statusFilter, dateFilter, dateBounds]);
+  }, [cases, myFeedbackMap, filter, statusFilter, dateFilter, dateBounds, debouncedSearch, messageMatchIds]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => { setPage(1); }, [filter, statusFilter, dateFilter, debouncedSearch, customFrom, customTo]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pageItems = useMemo(
+    () => filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
+    [filtered, currentPage],
+  );
+
+  // Keep active in view: if activeId isn't on current page, jump to its page
+  useEffect(() => {
+    if (activeId == null) return;
+    const idx = filtered.findIndex((c) => c.id === activeId);
+    if (idx < 0) return;
+    const targetPage = Math.floor(idx / PAGE_SIZE) + 1;
+    if (targetPage !== currentPage) setPage(targetPage);
+  }, [activeId, filtered, currentPage]);
 
   // Auto-select first
   useEffect(() => {
@@ -576,6 +637,33 @@ function FeedbacksPage() {
             </div>
           </div>
 
+          {/* Search bar */}
+          <div className="px-6 py-2.5 border-b border-zinc-800 bg-zinc-900/20 flex items-center gap-2">
+            <div className="relative flex-1 max-w-xl">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-500" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar por # do caso, título da thread ou texto de mensagem…"
+                className="w-full h-8 pl-8 pr-8 rounded-md border border-zinc-800 bg-zinc-950 text-xs text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-[#256EFF]"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white"
+                  aria-label="Limpar busca"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+            {searchingMessages && (
+              <span className="text-[10px] text-zinc-500">buscando mensagens…</span>
+            )}
+          </div>
+
           {/* Body split */}
           <div className="flex flex-1 overflow-hidden">
             {/* Sidebar */}
@@ -587,11 +675,13 @@ function FeedbacksPage() {
                   <div className="text-center py-12 px-4">
                     <CheckCircle2 className="h-8 w-8 text-zinc-700 mx-auto mb-2" />
                     <p className="text-xs text-zinc-400">
-                      {filter === "pending" ? "Tudo validado!" : "Nenhum caso."}
+                      {debouncedSearch
+                        ? "Nenhum caso encontrado."
+                        : filter === "pending" ? "Tudo validado!" : "Nenhum caso."}
                     </p>
                   </div>
                 ) : (
-                  filtered.map((c) => (
+                  pageItems.map((c) => (
                     <QueueItem
                       key={c.id}
                       caseRow={c}
@@ -602,7 +692,36 @@ function FeedbacksPage() {
                   ))
                 )}
               </div>
+
+              {/* Pagination footer */}
+              {filtered.length > PAGE_SIZE && (
+                <div className="border-t border-zinc-800 bg-zinc-900/60 px-3 py-2 flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    disabled={currentPage <= 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    className="inline-flex items-center gap-1 rounded border border-zinc-800 bg-zinc-950 px-2 py-1 text-[11px] text-zinc-300 hover:text-white hover:border-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <ChevronLeft className="h-3 w-3" /> Ant.
+                  </button>
+                  <span className="text-[11px] text-zinc-400 tabular-nums">
+                    {currentPage}/{totalPages}
+                    <span className="text-zinc-600 ml-1">
+                      · {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filtered.length)} de {filtered.length}
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    disabled={currentPage >= totalPages}
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    className="inline-flex items-center gap-1 rounded border border-zinc-800 bg-zinc-950 px-2 py-1 text-[11px] text-zinc-300 hover:text-white hover:border-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Próx. <ChevronRight className="h-3 w-3" />
+                  </button>
+                </div>
+              )}
             </div>
+
 
             {/* Detail */}
             <div className="flex-1 flex flex-col bg-zinc-950/30 min-w-0">

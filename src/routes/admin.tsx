@@ -2,10 +2,11 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase, ANALYZE_FN_URL, SUPABASE_ANON, type Case, type Analysis } from "@/lib/supabase";
 import { isTestCase } from "@/lib/discord";
-import { Lock, ArrowLeft, Sparkles, Loader2, X, Settings, RefreshCw, ThumbsUp, ArrowRight, Radar, Archive, Clock, AlertTriangle, Trash2 } from "lucide-react";
+import { Lock, ArrowLeft, Sparkles, Loader2, X, Settings, RefreshCw, ThumbsUp, ArrowRight, Radar, Archive, Clock, AlertTriangle, Trash2, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { loadSyncRuns, pushSyncRun, clearSyncRuns, type SyncRun } from "@/lib/syncHistory";
+import { syncDiscordThreads } from "@/lib/syncDiscord.functions";
 
 const ADMIN_PASSWORD = "May0401@";
 const STORAGE_KEY = "cloudia_admin_ok";
@@ -340,7 +341,6 @@ function Stat({ label, value, accent }: { label: string; value: number; accent?:
 }
 
 // ─── SYNC DISCORD CARD ────────────────────────────────────────────────────
-const SYNC_FN_URL = ANALYZE_FN_URL.replace(/analyze-case$/, "sync-discord-threads");
 
 type SyncStatus = { started_at: string; threads_checked: number; cases_archived: number; errors: number };
 
@@ -364,6 +364,7 @@ function formatFull(iso: string): string {
 function SyncDiscordCard() {
   const [runs, setRuns] = useState<SyncRun[]>([]);
   const [running, setRunning] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => { setRuns(loadSyncRuns()); }, []);
 
@@ -380,28 +381,37 @@ function SyncDiscordCard() {
 
   async function runSync() {
     setRunning(true);
+    setNotice(null);
     const started_at = new Date().toISOString();
     try {
-      const res = await fetch(SYNC_FN_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${SUPABASE_ANON}` },
-        body: JSON.stringify({ dry_run: false }),
-      });
-      if (!res.ok) {
-        const txt = await res.text().catch(() => "");
-        throw new Error(`HTTP ${res.status} — ${txt || "sync function não configurada"}`);
+      const data = await syncDiscordThreads();
+      if (!data.ok && data.error === "not_configured") {
+        // Não conte como falha — apenas mostre aviso de configuração.
+        setNotice(data.message ?? "Sync ainda não configurado.");
+        toast(data.message ?? "Sync ainda não configurado.", { duration: 5000 });
+      } else if (!data.ok) {
+        const run = pushSyncRun({
+          started_at,
+          finished_at: new Date().toISOString(),
+          threads_checked: data.threads_checked,
+          cases_archived: data.cases_archived,
+          errors: Math.max(1, data.errors),
+          status: "failed",
+        });
+        setRuns((prev) => [run, ...prev].slice(0, 20));
+        toast.error(data.message ?? "Falha ao sincronizar");
+      } else {
+        const run = pushSyncRun({
+          started_at,
+          finished_at: new Date().toISOString(),
+          threads_checked: data.threads_checked,
+          cases_archived: data.cases_archived,
+          errors: data.errors,
+          status: data.errors > 0 ? "partial" : "success",
+        });
+        setRuns((prev) => [run, ...prev].slice(0, 20));
+        toast.success(`Sync concluído — ${run.threads_checked} threads · ${run.cases_archived} arquivados`);
       }
-      const data = (await res.json()) as Partial<SyncStatus>;
-      const run = pushSyncRun({
-        started_at,
-        finished_at: new Date().toISOString(),
-        threads_checked: Number(data.threads_checked ?? 0),
-        cases_archived: Number(data.cases_archived ?? 0),
-        errors: Number(data.errors ?? 0),
-        status: (data.errors ?? 0) > 0 ? "partial" : "success",
-      });
-      setRuns((prev) => [run, ...prev].slice(0, 20));
-      toast.success(`Sync concluído — ${run.threads_checked} threads · ${run.cases_archived} arquivados`);
     } catch (err) {
       const run = pushSyncRun({
         started_at,
@@ -438,6 +448,13 @@ function SyncDiscordCard() {
           </p>
         </div>
       </div>
+
+      {notice && (
+        <div className="mb-4 flex items-start gap-2 rounded-md border border-[#f59e0b]/30 bg-[#f59e0b]/10 px-3 py-2 text-xs text-[#f59e0b]">
+          <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+          <span className="leading-relaxed">{notice}</span>
+        </div>
+      )}
 
       {/* Últimos números */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
