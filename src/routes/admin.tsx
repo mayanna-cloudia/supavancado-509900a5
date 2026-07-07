@@ -2,10 +2,11 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase, ANALYZE_FN_URL, SUPABASE_ANON, type Case, type Analysis } from "@/lib/supabase";
 import { isTestCase } from "@/lib/discord";
-import { Lock, ArrowLeft, Sparkles, Loader2, X, Settings, RefreshCw, ThumbsUp, ArrowRight, Radar, Archive, Clock, AlertTriangle, Trash2 } from "lucide-react";
+import { Lock, ArrowLeft, Sparkles, Loader2, X, Settings, RefreshCw, ThumbsUp, ArrowRight, Radar, Archive, Clock, AlertTriangle, Trash2, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { loadSyncRuns, pushSyncRun, clearSyncRuns, type SyncRun } from "@/lib/syncHistory";
+import { syncDiscordThreads } from "@/lib/syncDiscord.functions";
 
 const ADMIN_PASSWORD = "May0401@";
 const STORAGE_KEY = "cloudia_admin_ok";
