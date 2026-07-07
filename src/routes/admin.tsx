@@ -339,6 +339,228 @@ function Stat({ label, value, accent }: { label: string; value: number; accent?:
   );
 }
 
+// ─── SYNC DISCORD CARD ────────────────────────────────────────────────────
+const SYNC_FN_URL = ANALYZE_FN_URL.replace(/analyze-case$/, "sync-discord-threads");
+
+type SyncStatus = { started_at: string; threads_checked: number; cases_archived: number; errors: number };
+
+function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const s = Math.floor(diff / 1000);
+  if (s < 60) return `há ${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `há ${m} min`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `há ${h}h`;
+  const d = Math.floor(h / 24);
+  return `há ${d}d`;
+}
+
+function formatFull(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+function SyncDiscordCard() {
+  const [runs, setRuns] = useState<SyncRun[]>([]);
+  const [running, setRunning] = useState(false);
+
+  useEffect(() => { setRuns(loadSyncRuns()); }, []);
+
+  const last = runs[0] ?? null;
+  const totals = useMemo(() => {
+    return runs.reduce(
+      (acc, r) => ({
+        threads: acc.threads + r.threads_checked,
+        archived: acc.archived + r.cases_archived,
+      }),
+      { threads: 0, archived: 0 }
+    );
+  }, [runs]);
+
+  async function runSync() {
+    setRunning(true);
+    const started_at = new Date().toISOString();
+    try {
+      const res = await fetch(SYNC_FN_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${SUPABASE_ANON}` },
+        body: JSON.stringify({ dry_run: false }),
+      });
+      if (!res.ok) {
+        const txt = await res.text().catch(() => "");
+        throw new Error(`HTTP ${res.status} — ${txt || "sync function não configurada"}`);
+      }
+      const data = (await res.json()) as Partial<SyncStatus>;
+      const run = pushSyncRun({
+        started_at,
+        finished_at: new Date().toISOString(),
+        threads_checked: Number(data.threads_checked ?? 0),
+        cases_archived: Number(data.cases_archived ?? 0),
+        errors: Number(data.errors ?? 0),
+        status: (data.errors ?? 0) > 0 ? "partial" : "success",
+      });
+      setRuns((prev) => [run, ...prev].slice(0, 20));
+      toast.success(`Sync concluído — ${run.threads_checked} threads · ${run.cases_archived} arquivados`);
+    } catch (err) {
+      const run = pushSyncRun({
+        started_at,
+        finished_at: new Date().toISOString(),
+        threads_checked: 0,
+        cases_archived: 0,
+        errors: 1,
+        status: "failed",
+      });
+      setRuns((prev) => [run, ...prev].slice(0, 20));
+      toast.error(err instanceof Error ? err.message : "Falha ao sincronizar");
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  function handleClear() {
+    if (!confirm("Limpar histórico de sincronizações?")) return;
+    clearSyncRuns();
+    setRuns([]);
+  }
+
+  return (
+    <div className="rounded-lg border border-border bg-card p-5">
+      <div className="flex items-start gap-3 mb-4">
+        <div className="w-9 h-9 rounded-md bg-[rgba(245,158,11,0.15)] flex items-center justify-center shrink-0">
+          <Radar className="h-4 w-4 text-[#f59e0b]" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h2 className="text-sm font-medium text-foreground">Sincronizar com o Discord</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Verifica cada thread registrada e arquiva os casos cujo tópico foi apagado no Discord.
+            Isso remove do dashboard casos que não existem mais.
+          </p>
+        </div>
+      </div>
+
+      {/* Últimos números */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
+        <SyncStat
+          icon={<Clock className="h-3 w-3" />}
+          label="Último sync"
+          value={last ? relativeTime(last.finished_at) : "—"}
+          hint={last ? formatFull(last.finished_at) : "Nunca executado"}
+        />
+        <SyncStat
+          icon={<Radar className="h-3 w-3" />}
+          label="Threads verificadas"
+          value={last ? String(last.threads_checked) : "—"}
+          hint={runs.length ? `${totals.threads} no total` : undefined}
+        />
+        <SyncStat
+          icon={<Archive className="h-3 w-3" />}
+          label="Casos arquivados"
+          value={last ? String(last.cases_archived) : "—"}
+          hint={runs.length ? `${totals.archived} no total` : undefined}
+          accent
+        />
+        <SyncStat
+          icon={<AlertTriangle className="h-3 w-3" />}
+          label="Erros"
+          value={last ? String(last.errors) : "—"}
+          hint={last?.status === "failed" ? "Última execução falhou" : undefined}
+          danger={!!last && last.errors > 0}
+        />
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <button
+          type="button"
+          onClick={runSync}
+          disabled={running}
+          className={cn(
+            "inline-flex items-center gap-1.5 rounded-md text-xs font-medium transition-all px-3.5 py-2",
+            running
+              ? "bg-[#f59e0b]/60 text-white cursor-not-allowed"
+              : "bg-[#f59e0b] text-white hover:bg-[#d98906]"
+          )}
+        >
+          {running ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Sincronizando…</> : <><Radar className="h-3.5 w-3.5" /> Sincronizar agora</>}
+        </button>
+        {runs.length > 0 && (
+          <button
+            type="button"
+            onClick={handleClear}
+            disabled={running}
+            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-3 py-2 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            Limpar histórico
+          </button>
+        )}
+      </div>
+
+      {/* Histórico */}
+      {runs.length > 0 && (
+        <div className="rounded-md border border-border bg-surface overflow-hidden">
+          <div className="grid grid-cols-[1fr_auto_auto_auto] gap-3 px-3 py-2 border-b border-border text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+            <span>Quando</span>
+            <span className="text-right">Threads</span>
+            <span className="text-right">Arquivados</span>
+            <span className="text-right">Status</span>
+          </div>
+          <div className="max-h-56 overflow-y-auto">
+            {runs.map((r) => (
+              <div
+                key={r.id}
+                className="grid grid-cols-[1fr_auto_auto_auto] gap-3 px-3 py-2 border-b border-border/50 last:border-0 text-xs items-center"
+              >
+                <div className="min-w-0">
+                  <div className="text-foreground truncate">{formatFull(r.finished_at)}</div>
+                  <div className="text-[10px] text-muted-foreground">{relativeTime(r.finished_at)}</div>
+                </div>
+                <span className="text-right tabular-nums text-foreground/90">{r.threads_checked}</span>
+                <span className={cn("text-right tabular-nums", r.cases_archived > 0 ? "text-[#5b9eff] font-medium" : "text-foreground/90")}>
+                  {r.cases_archived}
+                </span>
+                <span
+                  className={cn(
+                    "text-right text-[10px] font-semibold uppercase tracking-wider",
+                    r.status === "success" && "text-emerald-400",
+                    r.status === "partial" && "text-amber-400",
+                    r.status === "failed" && "text-red-400",
+                    r.status === "cancelled" && "text-muted-foreground"
+                  )}
+                >
+                  {r.status === "success" ? "ok" : r.status === "partial" ? "parcial" : r.status === "failed" ? "falha" : "cancel."}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SyncStat({
+  icon, label, value, hint, accent, danger,
+}: { icon: React.ReactNode; label: string; value: string; hint?: string; accent?: boolean; danger?: boolean }) {
+  return (
+    <div className="rounded-md border border-border bg-surface px-3 py-2">
+      <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+        {icon}
+        <span>{label}</span>
+      </div>
+      <p
+        className={cn(
+          "text-base font-medium tabular-nums mt-0.5",
+          danger ? "text-red-400" : accent ? "text-[#5b9eff]" : "text-foreground"
+        )}
+      >
+        {value}
+      </p>
+      {hint && <p className="text-[10px] text-muted-foreground truncate">{hint}</p>}
+    </div>
+  );
+}
+
 // ─── FEEDBACKS CARD ───────────────────────────────────────────────────────
 function FeedbacksCard() {
   return (
