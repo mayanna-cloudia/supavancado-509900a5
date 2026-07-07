@@ -249,6 +249,10 @@ function FeedbacksPage() {
   const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState<FilterType>("pending");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [dateFilter, setDateFilter] = useState<DateFilter>("any");
+  const [customFrom, setCustomFrom] = useState<string>("");
+  const [customTo, setCustomTo] = useState<string>("");
   const [activeId, setActiveId] = useState<number | null>(null);
   const [comment, setComment] = useState("");
   const [showBadModal, setShowBadModal] = useState(false);
