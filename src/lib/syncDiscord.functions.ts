@@ -17,7 +17,9 @@ export const syncDiscordThreads = createServerFn({ method: "POST" }).handler(
     const SUPABASE_URL =
       process.env.SUPABASE_URL || "https://drnxnqguyqndmozmovxu.supabase.co";
     const SERVICE_KEY =
-      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
+      process.env.SB_SERVICE_ROLE_KEY ||
+      process.env.SUPABASE_SERVICE_ROLE_KEY ||
+      process.env.SUPABASE_PUBLISHABLE_KEY;
 
     if (!DISCORD_BOT_TOKEN) {
       return {
