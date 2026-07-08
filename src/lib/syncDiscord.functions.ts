@@ -36,7 +36,7 @@ export const syncDiscordThreads = createServerFn({ method: "POST" }).handler(
       return {
         ok: false,
         error: "not_configured",
-        message: "Faltando SUPABASE_SERVICE_ROLE_KEY nos secrets do servidor.",
+        message: "Faltando SB_SERVICE_ROLE_KEY nos secrets do servidor.",
         threads_checked: 0,
         cases_archived: 0,
         errors: 0,
