@@ -230,17 +230,26 @@ function QueueItem({
           )}
           {status === "good" && <Check className="h-3 w-3 text-emerald-400" />}
           {status === "bad" && <XCircle className="h-3 w-3 text-red-400" />}
-          <a
-            href={discordThreadUrl(caseRow)}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            className="text-zinc-500 hover:text-[#5b9eff] transition-colors"
+          <span
+            role="link"
+            tabIndex={0}
+            onClick={(e) => {
+              e.stopPropagation();
+              window.open(discordThreadUrl(caseRow), "_blank", "noopener,noreferrer");
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.stopPropagation();
+                e.preventDefault();
+                window.open(discordThreadUrl(caseRow), "_blank", "noopener,noreferrer");
+              }
+            }}
+            className="text-zinc-500 hover:text-[#5b9eff] transition-colors cursor-pointer"
             title="Abrir no Discord"
             aria-label="Abrir no Discord"
           >
             <ExternalLink className="h-3 w-3" />
-          </a>
+          </span>
         </div>
       </div>
       <p className={cn(
