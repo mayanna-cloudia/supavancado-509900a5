@@ -784,9 +784,21 @@ function FeedbacksPage() {
                             </span>
                           )}
                         </div>
-                        <h2 className="text-xl md:text-2xl font-bold text-white tracking-tight leading-tight">
-                          {active.thread_title || "Sem título"}
-                        </h2>
+                        <div className="flex items-start justify-between gap-3">
+                          <h2 className="text-xl md:text-2xl font-bold text-white tracking-tight leading-tight flex-1 min-w-0">
+                            {active.thread_title || "Sem título"}
+                          </h2>
+                          <a
+                            href={discordThreadUrl(active)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 shrink-0 px-3 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900 text-xs text-zinc-300 hover:text-white hover:border-[#256EFF]/50 hover:bg-[#256EFF]/10 transition-colors"
+                            title="Abrir thread no Discord"
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                            Abrir no Discord
+                          </a>
+                        </div>
                       </div>
 
                       {active.analysis?.summary && (
