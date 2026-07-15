@@ -33,7 +33,7 @@ type CaseLite = {
   id: number;
   idclinic: string | null;
   thread_title: string | null;
-  thread_id: string | number | null;
+  thread_id: string | number;
   priority?: string | null;
 };
 
