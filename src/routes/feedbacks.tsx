@@ -298,11 +298,26 @@ function FeedbacksPage() {
 
   async function loadData() {
     setLoading(true);
-    const [{ data: casesData }, { data: feedbackData }] = await Promise.all([
-      supabase.from("cases").select("*, analysis:analyses(*)").not("analysis", "is", null).order("opened_at", { ascending: false }).limit(2000),
-      supabase.from("analysis_feedback").select("*").eq("reviewer", reviewer),
-    ]);
-    setCases((casesData as CaseRow[]) || []);
+    // Fetch ALL cases with analysis in pages (PostgREST caps at ~1000 per request)
+    const PAGE = 1000;
+    const allCases: CaseRow[] = [];
+    for (let i = 0; i < 30; i++) {
+      const from = i * PAGE;
+      const { data, error } = await supabase
+        .from("cases")
+        .select("*, analysis:analyses(*)")
+        .not("analysis", "is", null)
+        .order("opened_at", { ascending: false })
+        .range(from, from + PAGE - 1);
+      if (error || !data || data.length === 0) break;
+      allCases.push(...(data as CaseRow[]));
+      if (data.length < PAGE) break;
+    }
+    const { data: feedbackData } = await supabase
+      .from("analysis_feedback")
+      .select("*")
+      .eq("reviewer", reviewer);
+    setCases(allCases);
     setFeedbacks((feedbackData as Feedback[]) || []);
     setLoading(false);
   }
