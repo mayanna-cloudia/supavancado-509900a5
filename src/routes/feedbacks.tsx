@@ -5,9 +5,10 @@ import type { CaseRow } from "@/lib/supabase";
 import {
   ThumbsUp, Lock, ArrowLeft, CheckCircle2, XCircle,
   AlertCircle, Check, Filter, ChevronDown, Calendar, Circle, CircleCheck,
-  Search, X, ChevronLeft, ChevronRight,
+  Search, X, ChevronLeft, ChevronRight, ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { discordThreadUrl } from "@/lib/discord";
 
 const PAGE_SIZE = 25;
 
@@ -229,6 +230,26 @@ function QueueItem({
           )}
           {status === "good" && <Check className="h-3 w-3 text-emerald-400" />}
           {status === "bad" && <XCircle className="h-3 w-3 text-red-400" />}
+          <span
+            role="link"
+            tabIndex={0}
+            onClick={(e) => {
+              e.stopPropagation();
+              window.open(discordThreadUrl(caseRow), "_blank", "noopener,noreferrer");
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.stopPropagation();
+                e.preventDefault();
+                window.open(discordThreadUrl(caseRow), "_blank", "noopener,noreferrer");
+              }
+            }}
+            className="text-zinc-500 hover:text-[#5b9eff] transition-colors cursor-pointer"
+            title="Abrir no Discord"
+            aria-label="Abrir no Discord"
+          >
+            <ExternalLink className="h-3 w-3" />
+          </span>
         </div>
       </div>
       <p className={cn(
@@ -297,11 +318,26 @@ function FeedbacksPage() {
 
   async function loadData() {
     setLoading(true);
-    const [{ data: casesData }, { data: feedbackData }] = await Promise.all([
-      supabase.from("cases").select("*, analysis:analyses(*)").not("analysis", "is", null).order("opened_at", { ascending: false }).limit(2000),
-      supabase.from("analysis_feedback").select("*").eq("reviewer", reviewer),
-    ]);
-    setCases((casesData as CaseRow[]) || []);
+    // Fetch ALL cases with analysis in pages (PostgREST caps at ~1000 per request)
+    const PAGE = 1000;
+    const allCases: CaseRow[] = [];
+    for (let i = 0; i < 30; i++) {
+      const from = i * PAGE;
+      const { data, error } = await supabase
+        .from("cases")
+        .select("*, analysis:analyses(*)")
+        .not("analysis", "is", null)
+        .order("opened_at", { ascending: false })
+        .range(from, from + PAGE - 1);
+      if (error || !data || data.length === 0) break;
+      allCases.push(...(data as CaseRow[]));
+      if (data.length < PAGE) break;
+    }
+    const { data: feedbackData } = await supabase
+      .from("analysis_feedback")
+      .select("*")
+      .eq("reviewer", reviewer);
+    setCases(allCases);
     setFeedbacks((feedbackData as Feedback[]) || []);
     setLoading(false);
   }
@@ -768,9 +804,21 @@ function FeedbacksPage() {
                             </span>
                           )}
                         </div>
-                        <h2 className="text-xl md:text-2xl font-bold text-white tracking-tight leading-tight">
-                          {active.thread_title || "Sem título"}
-                        </h2>
+                        <div className="flex items-start justify-between gap-3">
+                          <h2 className="text-xl md:text-2xl font-bold text-white tracking-tight leading-tight flex-1 min-w-0">
+                            {active.thread_title || "Sem título"}
+                          </h2>
+                          <a
+                            href={discordThreadUrl(active)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 shrink-0 px-3 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900 text-xs text-zinc-300 hover:text-white hover:border-[#256EFF]/50 hover:bg-[#256EFF]/10 transition-colors"
+                            title="Abrir thread no Discord"
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                            Abrir no Discord
+                          </a>
+                        </div>
                       </div>
 
                       {active.analysis?.summary && (
