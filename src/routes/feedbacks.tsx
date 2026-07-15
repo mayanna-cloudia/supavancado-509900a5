@@ -5,9 +5,10 @@ import type { CaseRow } from "@/lib/supabase";
 import {
   ThumbsUp, Lock, ArrowLeft, CheckCircle2, XCircle,
   AlertCircle, Check, Filter, ChevronDown, Calendar, Circle, CircleCheck,
-  Search, X, ChevronLeft, ChevronRight,
+  Search, X, ChevronLeft, ChevronRight, ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { discordThreadUrl } from "@/lib/discord";
 
 const PAGE_SIZE = 25;
 
