@@ -10,12 +10,18 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as FeedbacksRouteImport } from './routes/feedbacks'
+import { Route as AdminFeedbacksRouteImport } from './routes/admin-feedbacks'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 
 const FeedbacksRoute = FeedbacksRouteImport.update({
   id: '/feedbacks',
   path: '/feedbacks',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminFeedbacksRoute = AdminFeedbacksRouteImport.update({
+  id: '/admin-feedbacks',
+  path: '/admin-feedbacks',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminRoute = AdminRouteImport.update({
@@ -32,30 +38,34 @@ const IndexRoute = IndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/admin-feedbacks': typeof AdminFeedbacksRoute
   '/feedbacks': typeof FeedbacksRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/admin-feedbacks': typeof AdminFeedbacksRoute
   '/feedbacks': typeof FeedbacksRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/admin-feedbacks': typeof AdminFeedbacksRoute
   '/feedbacks': typeof FeedbacksRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/admin' | '/feedbacks'
+  fullPaths: '/' | '/admin' | '/admin-feedbacks' | '/feedbacks'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin' | '/feedbacks'
-  id: '__root__' | '/' | '/admin' | '/feedbacks'
+  to: '/' | '/admin' | '/admin-feedbacks' | '/feedbacks'
+  id: '__root__' | '/' | '/admin' | '/admin-feedbacks' | '/feedbacks'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
+  AdminFeedbacksRoute: typeof AdminFeedbacksRoute
   FeedbacksRoute: typeof FeedbacksRoute
 }
 
@@ -66,6 +76,13 @@ declare module '@tanstack/react-router' {
       path: '/feedbacks'
       fullPath: '/feedbacks'
       preLoaderRoute: typeof FeedbacksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin-feedbacks': {
+      id: '/admin-feedbacks'
+      path: '/admin-feedbacks'
+      fullPath: '/admin-feedbacks'
+      preLoaderRoute: typeof AdminFeedbacksRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin': {
@@ -88,6 +105,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
+  AdminFeedbacksRoute: AdminFeedbacksRoute,
   FeedbacksRoute: FeedbacksRoute,
 }
 export const routeTree = rootRouteImport

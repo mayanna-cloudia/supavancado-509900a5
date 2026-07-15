@@ -602,13 +602,22 @@ function FeedbacksCard() {
         </div>
       </div>
 
-      <Link
-        to="/feedbacks"
-        className="inline-flex items-center gap-1.5 rounded-md bg-[#10b981] px-3.5 py-2 text-xs font-medium text-white hover:bg-[#0ea371] transition-colors"
-      >
-        Abrir feedbacks
-        <ArrowRight className="h-3.5 w-3.5" />
-      </Link>
+      <div className="flex flex-wrap gap-2">
+        <Link
+          to="/feedbacks"
+          className="inline-flex items-center gap-1.5 rounded-md bg-[#10b981] px-3.5 py-2 text-xs font-medium text-white hover:bg-[#0ea371] transition-colors"
+        >
+          Abrir feedbacks
+          <ArrowRight className="h-3.5 w-3.5" />
+        </Link>
+        <Link
+          to="/admin-feedbacks"
+          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-3.5 py-2 text-xs font-medium text-foreground hover:bg-surface/70 transition-colors"
+        >
+          Ver log de feedbacks
+          <ArrowRight className="h-3.5 w-3.5" />
+        </Link>
+      </div>
     </div>
   );
 }
