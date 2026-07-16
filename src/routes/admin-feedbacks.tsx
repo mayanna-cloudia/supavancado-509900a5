@@ -587,6 +587,7 @@ function AdminFeedbacksPage() {
                             href={discordThreadUrl(c)}
                             target="_blank"
                             rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
                             className="inline-flex items-center gap-1 rounded-md border border-border bg-surface px-2 py-1 text-[10px] text-foreground/90 hover:text-white hover:border-[#256EFF]/50 hover:bg-[#256EFF]/10 transition-colors"
                             title="Abrir no Discord"
                           >
