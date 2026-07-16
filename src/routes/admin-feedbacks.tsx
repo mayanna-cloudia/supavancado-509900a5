@@ -531,7 +531,11 @@ function AdminFeedbacksPage() {
                 ) : rows.map((r) => {
                   const c = cases[r.case_id];
                   return (
-                    <tr key={r.id} className="border-b border-border/50 last:border-0 hover:bg-surface/30 align-top">
+                    <tr
+                      key={r.id}
+                      onClick={() => setSelectedCaseId(r.case_id)}
+                      className="border-b border-border/50 last:border-0 hover:bg-surface/40 align-top cursor-pointer transition-colors"
+                    >
                       <td className="px-3 py-2 whitespace-nowrap text-muted-foreground tabular-nums">{fmtDate(r.created_at)}</td>
                       <td className="px-3 py-2 min-w-[220px] max-w-[320px]">
                         <div className="flex items-center gap-1.5 mb-0.5">
