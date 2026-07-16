@@ -225,6 +225,121 @@ function AdminFeedbacksPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  const handleExport = useCallback(async () => {
+    if (!authed || exporting) return;
+    setExporting(true);
+    try {
+      // Match the same filters used by load()
+      let caseIdsFilter: number[] | null = null;
+      const q = debouncedSearch;
+      if (q) {
+        const isNumeric = /^\d+$/.test(q);
+        const { data: caseHits } = await supabase
+          .from("cases")
+          .select("id")
+          .or(
+            [
+              `idclinic.ilike.%${q}%`,
+              `thread_title.ilike.%${q}%`,
+              ...(isNumeric ? [`id.eq.${q}`] : []),
+            ].join(",")
+          )
+          .limit(5000);
+        caseIdsFilter = (caseHits as { id: number }[] | null)?.map((r) => r.id) ?? [];
+      }
+
+      // Paginated fetch of ALL matching feedback rows
+      const PAGE = 1000;
+      const all: FeedbackRow[] = [];
+      for (let i = 0; i < 30; i++) {
+        let query = supabase
+          .from("analysis_feedback")
+          .select("id, case_id, reviewer, rating, reasons, comment, created_at")
+          .order("created_at", { ascending: false });
+        if (rating !== "all") query = query.eq("rating", rating);
+        if (reviewer !== "all") query = query.eq("reviewer", reviewer);
+        if (dateBounds.from) query = query.gte("created_at", dateBounds.from);
+        if (dateBounds.to) query = query.lte("created_at", dateBounds.to);
+        if (q) {
+          const ids = caseIdsFilter ?? [];
+          const orParts: string[] = [`comment.ilike.%${q}%`];
+          if (ids.length > 0) orParts.push(`case_id.in.(${ids.join(",")})`);
+          query = query.or(orParts.join(","));
+        }
+        const { data, error: e } = await query.range(i * PAGE, i * PAGE + PAGE - 1);
+        if (e) throw e;
+        const chunk = (data as FeedbackRow[]) || [];
+        all.push(...chunk);
+        if (chunk.length < PAGE) break;
+      }
+
+      if (all.length === 0) {
+        toast("Nenhum feedback para exportar com os filtros atuais");
+        return;
+      }
+
+      // Enrich with case metadata
+      const uniqIds = Array.from(new Set(all.map((r) => r.case_id)));
+      const caseMap: Record<number, CaseLite> = { ...cases };
+      const missing = uniqIds.filter((id) => !(id in caseMap));
+      if (missing.length > 0) {
+        // fetch in chunks of 500
+        for (let i = 0; i < missing.length; i += 500) {
+          const slice = missing.slice(i, i + 500);
+          const { data: cd } = await supabase
+            .from("cases")
+            .select("id, idclinic, thread_title, thread_id, priority")
+            .in("id", slice);
+          if (cd) for (const c of cd as CaseLite[]) caseMap[c.id] = c;
+        }
+      }
+
+      const esc = (v: unknown) => {
+        if (v == null) return "";
+        let s = String(v).replace(/\r?\n|\r/g, " ").replace(/\s+/g, " ").trim();
+        if (/[",;]/.test(s)) s = `"${s.replace(/"/g, '""')}"`;
+        return s;
+      };
+      const cols = ["Data", "Caso ID", "IDCLINIC", "Título", "Prioridade", "Revisor", "Rating", "Motivos", "Comentário", "URL Discord"];
+      const lines = [cols.map(esc).join(",")];
+      for (const r of all) {
+        const c = caseMap[r.case_id];
+        lines.push([
+          fmtDate(r.created_at),
+          String(r.case_id),
+          c?.idclinic || "",
+          c?.thread_title || "",
+          c?.priority || "",
+          r.reviewer,
+          r.rating === "good" ? "Aprovado" : "Reportado",
+          (r.reasons || []).join(" | "),
+          r.comment || "",
+          c ? discordThreadUrl(c) : "",
+        ].map(esc).join(","));
+      }
+      const csv = lines.join("\r\n");
+      const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const d = new Date();
+      const p = (n: number) => String(n).padStart(2, "0");
+      const suffix = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}-${p(d.getMinutes())}`;
+      a.href = url;
+      a.download = `cloudia-analysis-feedback-${suffix}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+      toast.success(`${all.length.toLocaleString("pt-BR")} feedback(s) exportados`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao exportar");
+    } finally {
+      setExporting(false);
+    }
+  }, [authed, exporting, rating, reviewer, dateBounds.from, dateBounds.to, debouncedSearch, cases]);
+
+
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
 
