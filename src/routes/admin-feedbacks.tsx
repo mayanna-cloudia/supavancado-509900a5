@@ -630,6 +630,277 @@ function AdminFeedbacksPage() {
           </div>
         </div>
       </div>
+      {selectedCaseId != null && (
+        <CaseDetailDrawer
+          caseId={selectedCaseId}
+          initialCase={cases[selectedCaseId] ?? null}
+          onClose={() => setSelectedCaseId(null)}
+        />
+      )}
     </div>
   );
 }
+
+type FullCase = CaseLite & {
+  opened_at?: string | null;
+  closed_at?: string | null;
+  last_activity_at?: string | null;
+  status?: string | null;
+  case_number?: number | null;
+};
+
+function CaseDetailDrawer({
+  caseId,
+  initialCase,
+  onClose,
+}: {
+  caseId: number;
+  initialCase: CaseLite | null;
+  onClose: () => void;
+}) {
+  const [caseData, setCaseData] = useState<FullCase | null>(initialCase);
+  const [analysis, setAnalysis] = useState<Analysis | null>(null);
+  const [feedbacks, setFeedbacks] = useState<FeedbackRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  useEffect(() => {
+    let cancel = false;
+    (async () => {
+      setLoading(true); setErr(null);
+      try {
+        const [cRes, aRes, fRes] = await Promise.all([
+          supabase
+            .from("cases")
+            .select("id, idclinic, thread_title, thread_id, priority, opened_at, closed_at, last_activity_at, status, case_number")
+            .eq("id", caseId)
+            .maybeSingle(),
+          supabase
+            .from("analyses")
+            .select("*")
+            .eq("case_id", caseId)
+            .order("analyzed_at", { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+          supabase
+            .from("analysis_feedback")
+            .select("id, case_id, reviewer, rating, reasons, comment, created_at")
+            .eq("case_id", caseId)
+            .order("created_at", { ascending: false }),
+        ]);
+        if (cancel) return;
+        if (cRes.data) setCaseData(cRes.data as FullCase);
+        if (aRes.data) setAnalysis(aRes.data as Analysis);
+        setFeedbacks((fRes.data as FeedbackRow[]) || []);
+      } catch (e) {
+        if (!cancel) setErr(e instanceof Error ? e.message : "Erro ao carregar detalhes");
+      } finally {
+        if (!cancel) setLoading(false);
+      }
+    })();
+    return () => { cancel = true; };
+  }, [caseId]);
+
+  const goodCount = feedbacks.filter((f) => f.rating === "good").length;
+  const badCount = feedbacks.filter((f) => f.rating === "bad").length;
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true">
+      <button
+        type="button"
+        aria-label="Fechar"
+        onClick={onClose}
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+      />
+      <aside className="relative h-full w-full max-w-[640px] bg-background border-l border-border shadow-2xl overflow-y-auto animate-in slide-in-from-right duration-200">
+        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b border-border px-5 py-3 flex items-center justify-between">
+          <div className="min-w-0">
+            <div className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">Detalhes do caso</div>
+            <div className="text-sm font-medium text-foreground truncate">
+              #{caseData?.idclinic || caseId} {caseData?.thread_title ? `· ${caseData.thread_title}` : ""}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {caseData && (
+              <a
+                href={discordThreadUrl(caseData)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 rounded-md border border-border bg-surface px-2 py-1 text-[10px] text-foreground/90 hover:text-white hover:border-[#256EFF]/50 hover:bg-[#256EFF]/10 transition-colors"
+              >
+                <ExternalLink className="h-3 w-3" /> Discord
+              </a>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-surface transition-colors"
+              aria-label="Fechar"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        <div className="p-5 space-y-5">
+          {loading ? (
+            <div className="flex items-center justify-center py-16 text-muted-foreground text-xs">
+              <Loader2 className="h-4 w-4 animate-spin mr-2" /> Carregando…
+            </div>
+          ) : err ? (
+            <div className="text-xs text-destructive">{err}</div>
+          ) : (
+            <>
+              {/* Case info */}
+              <section className="rounded-lg border border-border bg-card p-4">
+                <div className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold mb-3">Caso</div>
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+                  <dt className="text-muted-foreground">Caso ID</dt>
+                  <dd className="text-foreground font-mono tabular-nums">#{caseData?.idclinic || caseId}</dd>
+                  <dt className="text-muted-foreground">Prioridade</dt>
+                  <dd>{caseData?.priority ? (
+                    <span className={cn(
+                      "px-1.5 py-0.5 rounded text-[10px] font-bold border",
+                      caseData.priority === "P3"
+                        ? "bg-red-500/15 text-red-400 border-red-500/30"
+                        : "bg-amber-500/15 text-amber-400 border-amber-500/30"
+                    )}>{caseData.priority}</span>
+                  ) : <span className="text-muted-foreground">—</span>}</dd>
+                  <dt className="text-muted-foreground">Status</dt>
+                  <dd className="text-foreground">{caseData?.status || "—"}</dd>
+                  <dt className="text-muted-foreground">Aberto em</dt>
+                  <dd className="text-foreground tabular-nums">{caseData?.opened_at ? fmtDate(caseData.opened_at) : "—"}</dd>
+                  <dt className="text-muted-foreground">Última atividade</dt>
+                  <dd className="text-foreground tabular-nums">{caseData?.last_activity_at ? fmtDate(caseData.last_activity_at) : "—"}</dd>
+                  <dt className="text-muted-foreground">Fechado em</dt>
+                  <dd className="text-foreground tabular-nums">{caseData?.closed_at ? fmtDate(caseData.closed_at) : "—"}</dd>
+                </dl>
+                {caseData?.thread_title && (
+                  <div className="mt-3 pt-3 border-t border-border/60">
+                    <div className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold mb-1">Título</div>
+                    <div className="text-xs text-foreground">{caseData.thread_title}</div>
+                  </div>
+                )}
+              </section>
+
+              {/* Analysis */}
+              <section className="rounded-lg border border-border bg-card p-4">
+                <div className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold mb-3">Análise IA</div>
+                {analysis ? (
+                  <div className="space-y-3 text-xs">
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                      <div>
+                        <div className="text-muted-foreground mb-0.5">Categoria</div>
+                        <div className="text-foreground">{analysis.category || "—"}{analysis.subcategory ? ` · ${analysis.subcategory}` : ""}</div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground mb-0.5">Resolvido</div>
+                        <div className="text-foreground">{analysis.resolved ? "Sim" : "Não"}</div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground mb-0.5">Resolvedor</div>
+                        <div className="text-foreground">{analysis.resolver_name || "—"}</div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground mb-0.5">Equipe</div>
+                        <div className="text-foreground">{analysis.resolver_team || "—"}</div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground mb-0.5">Primeiro respondente</div>
+                        <div className="text-foreground">{analysis.first_responder_name || "—"}</div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground mb-0.5">1ª resposta</div>
+                        <div className="text-foreground tabular-nums">
+                          {analysis.first_response_minutes != null ? `${analysis.first_response_minutes} min` : "—"}
+                        </div>
+                      </div>
+                    </div>
+                    {analysis.summary && (
+                      <div>
+                        <div className="text-muted-foreground mb-0.5">Resumo</div>
+                        <div className="text-foreground/90 leading-relaxed whitespace-pre-wrap">{analysis.summary}</div>
+                      </div>
+                    )}
+                    {analysis.resolution && (
+                      <div>
+                        <div className="text-muted-foreground mb-0.5">Resolução</div>
+                        <div className="text-foreground/90 leading-relaxed whitespace-pre-wrap">{analysis.resolution}</div>
+                      </div>
+                    )}
+                    <div className="text-[10px] text-muted-foreground pt-1">
+                      Analisado em {fmtDate(analysis.analyzed_at)}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-xs text-muted-foreground italic">Nenhuma análise registrada para este caso.</div>
+                )}
+              </section>
+
+              {/* Feedbacks */}
+              <section className="rounded-lg border border-border bg-card p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">
+                    Feedbacks ({feedbacks.length})
+                  </div>
+                  <div className="flex items-center gap-2 text-[10px]">
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-bold">
+                      <Check className="h-3 w-3" /> {goodCount}
+                    </span>
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 border border-red-500/30 font-bold">
+                      <XCircle className="h-3 w-3" /> {badCount}
+                    </span>
+                  </div>
+                </div>
+                {feedbacks.length === 0 ? (
+                  <div className="text-xs text-muted-foreground italic">Sem feedbacks.</div>
+                ) : (
+                  <ul className="space-y-2">
+                    {feedbacks.map((f) => (
+                      <li key={f.id} className="rounded-md border border-border/70 bg-surface/40 p-3">
+                        <div className="flex items-center justify-between gap-2 mb-1.5">
+                          <div className="flex items-center gap-2">
+                            {f.rating === "good" ? (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold">
+                                <Check className="h-3 w-3" /> Aprovado
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 border border-red-500/30 text-[10px] font-bold">
+                                <XCircle className="h-3 w-3" /> Reportado
+                              </span>
+                            )}
+                            <span className="text-xs text-foreground">{f.reviewer}</span>
+                          </div>
+                          <span className="text-[10px] text-muted-foreground tabular-nums">{fmtDate(f.created_at)}</span>
+                        </div>
+                        {f.reasons && f.reasons.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mb-1.5">
+                            {f.reasons.map((rz) => (
+                              <span key={rz} className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/10 text-red-300 border border-red-500/25">
+                                {rz}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {f.comment && (
+                          <div className="text-xs text-foreground/90 italic whitespace-pre-wrap">"{f.comment}"</div>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            </>
+          )}
+        </div>
+      </aside>
+    </div>
+  );
+}
+
