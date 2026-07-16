@@ -1,12 +1,14 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { supabase } from "@/lib/supabase";
+import { supabase, type Analysis } from "@/lib/supabase";
 import { discordThreadUrl } from "@/lib/discord";
 import {
   ArrowLeft, Lock, Search, X, ChevronLeft, ChevronRight,
   Check, XCircle, Filter, Calendar, ExternalLink, RefreshCw, Loader2, MessageSquare,
+  Download,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 const ADMIN_PASSWORD = "May0401@";
 const STORAGE_KEY = "cloudia_admin_ok";
