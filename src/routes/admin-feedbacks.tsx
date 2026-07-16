@@ -110,6 +110,8 @@ function AdminFeedbacksPage() {
   const [reviewerOptions, setReviewerOptions] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setErrorMsg] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [selectedCaseId, setSelectedCaseId] = useState<number | null>(null);
 
   // Debounce search
   useEffect(() => {
