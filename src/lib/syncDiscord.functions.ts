@@ -43,26 +43,36 @@ export const syncDiscordThreads = createServerFn({ method: "POST" }).handler(
       };
     }
 
-    const casesRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/cases?select=id,thread_id&archived=is.false&thread_id=not.is.null&limit=5000`,
-      {
-        headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` },
-      },
-    );
-
-    if (!casesRes.ok) {
-      const txt = await casesRes.text().catch(() => "");
-      return {
-        ok: false,
-        error: "supabase_error",
-        message: `Erro ao listar cases (${casesRes.status}): ${txt.slice(0, 180)}`,
-        threads_checked: 0,
-        cases_archived: 0,
-        errors: 1,
-      };
+    const cases: SupabaseCase[] = [];
+    const PAGE = 1000;
+    for (let from = 0; ; from += PAGE) {
+      const to = from + PAGE - 1;
+      const res = await fetch(
+        `${SUPABASE_URL}/rest/v1/cases?select=id,thread_id&archived=is.false&thread_id=not.is.null&order=id.asc`,
+        {
+          headers: {
+            apikey: SERVICE_KEY,
+            Authorization: `Bearer ${SERVICE_KEY}`,
+            Range: `${from}-${to}`,
+            "Range-Unit": "items",
+          },
+        },
+      );
+      if (!res.ok) {
+        const txt = await res.text().catch(() => "");
+        return {
+          ok: false,
+          error: "supabase_error",
+          message: `Erro ao listar cases (${res.status}): ${txt.slice(0, 180)}`,
+          threads_checked: 0,
+          cases_archived: 0,
+          errors: 1,
+        };
+      }
+      const batch = (await res.json()) as SupabaseCase[];
+      cases.push(...batch);
+      if (batch.length < PAGE) break;
     }
-
-    const cases = (await casesRes.json()) as SupabaseCase[];
     let checked = 0;
     let errors = 0;
     const toArchive: number[] = [];
