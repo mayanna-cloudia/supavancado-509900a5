@@ -30,19 +30,35 @@ function isoWeekKey(monday: Date): string {
   return `${year}-${String(week).padStart(2, "0")}`;
 }
 
-async function fetchAllPaged<T>(
-  table: string,
-  select: string,
-  apply: (q: ReturnType<typeof supabase.from>) => unknown,
-): Promise<T[]> {
+async function fetchCases(): Promise<Case[]> {
   const PAGE = 1000;
-  const out: T[] = [];
+  const out: Case[] = [];
   for (let from = 0; from < 40000; from += PAGE) {
-    let q = supabase.from(table).select(select).range(from, from + PAGE - 1);
-    q = apply(q as never) as typeof q;
-    const { data, error } = await q;
+    const { data, error } = await supabase
+      .from("cases")
+      .select("id,thread_title,opened_at,closed_at,last_activity_at")
+      .order("id", { ascending: true })
+      .range(from, from + PAGE - 1);
     if (error) throw error;
-    const batch = (data as T[]) || [];
+    const batch = (data as unknown as Case[]) || [];
+    out.push(...batch);
+    if (batch.length < PAGE) break;
+  }
+  return out;
+}
+
+async function fetchResolvedAnalyses(): Promise<Analysis[]> {
+  const PAGE = 1000;
+  const out: Analysis[] = [];
+  for (let from = 0; from < 40000; from += PAGE) {
+    const { data, error } = await supabase
+      .from("analyses")
+      .select("case_id,summary,resolution,resolved,analyzed_at")
+      .eq("resolved", true)
+      .order("case_id", { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (error) throw error;
+    const batch = (data as unknown as Analysis[]) || [];
     out.push(...batch);
     if (batch.length < PAGE) break;
   }
@@ -60,16 +76,8 @@ export function WeeklySummaryCard() {
       setLoading(true);
       setError(null);
       try {
-        const [cases, analyses] = await Promise.all([
-          fetchAllPaged<Case>("cases", "id,thread_title,opened_at,closed_at,last_activity_at", (q) =>
-            (q as never as ReturnType<typeof supabase.from>).order("id", { ascending: true } as never),
-          ),
-          fetchAllPaged<Analysis>(
-            "analyses",
-            "case_id,summary,resolution,resolved,analyzed_at",
-            (q) => (q as never as { eq: (a: string, b: unknown) => unknown }).eq("resolved", true),
-          ),
-        ]);
+        const [cases, analyses] = await Promise.all([fetchCases(), fetchResolvedAnalyses()]);
+
 
         const caseMap = new Map<number, Case>();
         for (const c of cases) caseMap.set(c.id, c);
