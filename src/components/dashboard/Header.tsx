@@ -2,22 +2,24 @@ import { format } from "date-fns";
 import { useEffect, useState } from "react";
 
 export function LiveClock() {
-  const [now, setNow] = useState(new Date());
+  const [now, setNow] = useState<Date | null>(null);
   useEffect(() => {
+    setNow(new Date());
     const t = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(t);
   }, []);
   return (
     <div className="text-right">
       <div className="text-sm font-medium text-foreground tabular-nums leading-none">
-        {format(now, "HH:mm:ss")}
+        {now ? format(now, "HH:mm:ss") : "--:--:--"}
       </div>
       <div className="text-[10px] text-muted-foreground hidden sm:block mt-1 tabular-nums uppercase tracking-wider">
-        {format(now, "EEE, dd MMM yyyy")}
+        {now ? format(now, "EEE, dd MMM yyyy") : ""}
       </div>
     </div>
   );
 }
+
 
 export function LiveIndicator({ active }: { active: boolean; lastEvent: number }) {
   return (
