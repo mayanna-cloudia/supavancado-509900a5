@@ -7,6 +7,8 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { loadSyncRuns, pushSyncRun, clearSyncRuns, type SyncRun } from "@/lib/syncHistory";
 import { syncDiscordThreads } from "@/lib/syncDiscord.functions";
+import { WeeklySummaryCard } from "@/components/dashboard/WeeklySummaryCard";
+
 
 const ADMIN_PASSWORD = "May0401@";
 const STORAGE_KEY = "cloudia_admin_ok";
