@@ -3,7 +3,7 @@ import { supabase, type Case, type Analysis } from "@/lib/supabase";
 import { isTestCase } from "@/lib/discord";
 import { fmtDate } from "@/lib/format";
 import { generateWeeklySummary } from "@/lib/weeklySummary.functions";
-import { Sparkles, Loader2, RefreshCw, CalendarDays, ChevronDown } from "lucide-react";
+import { Sparkles, Loader2, RefreshCw, CalendarDays, ChevronDown, Copy, Check } from "lucide-react";
 import { toast } from "sonner";
 
 type WeekGroup = {
@@ -178,6 +178,20 @@ function WeekCard({ week }: { week: WeekGroup }) {
   const storageKey = `admin_summary_${week.key}`;
   const [text, setText] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  async function copy() {
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+      toast.success("Resumo copiado");
+    } catch {
+      toast.error("Não foi possível copiar");
+    }
+  }
+
 
   useEffect(() => {
     try {
@@ -237,21 +251,33 @@ function WeekCard({ week }: { week: WeekGroup }) {
             <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
               Resumo executivo
             </span>
-            <button
-              type="button"
-              onClick={generate}
-              disabled={running}
-              className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-1 text-[10px] text-muted-foreground hover:text-foreground disabled:opacity-60 transition-colors"
-            >
-              {running ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : (
-                <RefreshCw className="h-3 w-3" />
-              )}
-              Regenerar
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={copy}
+                className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                {copied ? "Copiado" : "Copiar"}
+              </button>
+              <button
+                type="button"
+                onClick={generate}
+                disabled={running}
+                className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-1 text-[10px] text-muted-foreground hover:text-foreground disabled:opacity-60 transition-colors"
+              >
+                {running ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-3 w-3" />
+                )}
+                Regenerar
+              </button>
+            </div>
           </div>
-          <p className="text-xs text-foreground/90 whitespace-pre-wrap leading-relaxed">{text}</p>
+          <div className="max-h-72 overflow-y-auto overscroll-contain scrollbar-thin pr-2">
+            <p className="text-xs text-foreground/90 whitespace-pre-wrap leading-relaxed">{text}</p>
+          </div>
         </div>
       )}
     </div>
