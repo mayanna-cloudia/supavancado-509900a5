@@ -675,10 +675,12 @@ function AdminPage() {
         </div>
 
         <div className="flex flex-col gap-4">
+          <WeeklySummaryCard />
           <ReanalyzeOpenCard />
           <SyncDiscordCard />
           <FeedbacksCard />
         </div>
+
       </div>
     </div>
   );
