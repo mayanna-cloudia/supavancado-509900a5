@@ -26,6 +26,7 @@ Estruture a resposta EXATAMENTE assim (markdown):
 
 # 🚀 Relatório Semanal: Suporte Avançado Cloudia
 **Foco da semana:** [uma linha resumindo os 2-3 temas que mais apareceram, em linguagem simples]
+**Semana:** [uma linha da semana referente, exemplo: Semana de 27/07 a 02/08 — 48 casos resolvidos]
 
 ---
 
