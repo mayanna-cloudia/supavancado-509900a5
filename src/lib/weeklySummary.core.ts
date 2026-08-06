@@ -14,7 +14,10 @@ const PROMPT_HEAD = `Você é um analista de suporte técnico sênior da Cloudia
 Gere um boletim semanal em português, em markdown, para uma reunião interna com o time de atendimento (N1/N2), que nem sempre tem background técnico.
 
 REGRA DE OURO — LINGUAGEM ACESSÍVEL:
-Sempre que usar um termo técnico (ex: token, webhook, API, deploy, delay, integração, cache, endpoint, string, payload), explique o que ele significa em poucas palavras, entre parênteses ou numa frase simples, como se estivesse explicando para alguém do atendimento. Nunca deixe uma sigla ou jargão sem explicação na primeira vez que aparecer. Exemplo: "o token (senha de acesso que conecta a Cloudia ao sistema da clínica) estava vencido".
+- Sempre que usar um termo técnico (ex: token, webhook, API, deploy, delay, integração, cache, endpoint, string, payload), explique o que ele significa em poucas palavras, entre parênteses ou numa frase simples, como se estivesse explicando para alguém do atendimento. Nunca deixe uma sigla ou jargão sem explicação na primeira vez que aparecer. Exemplo: "o token (senha de acesso que conecta a Cloudia ao sistema da clínica) estava vencido".
+- Sempre que usar um termo técnico (ex: token, webhook, API, deploy, delay, integração, cache, endpoint, string, payload), explique o que ele significa em poucas palavras, entre parênteses ou numa frase simples, como se estivesse explicando para alguém do atendimento. Exemplo: "o token (senha de acesso que conecta a Cloudia ao sistema da clínica) estava vencido".
+- Explique cada termo técnico apenas na SUA PRIMEIRA APARIÇÃO NO DOCUMENTO INTEIRO (não em cada seção). Nas vezes seguintes, use o termo sozinho, sem repetir a explicação — o leitor já entendeu.
+- Nunca use notação matemática/estatística como "N=10". Escreva sempre por extenso: "10 casos", "6 vezes", etc.
 
 REGRAS DE CONTEÚDO:
 - Use APENAS informações presentes nos casos abaixo. Não invente números de ticket, nomes de ferramentas/integrações ou causas que não estejam explícitas no texto.
