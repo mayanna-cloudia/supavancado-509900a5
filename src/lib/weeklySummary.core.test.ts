@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  buildCasesBlock,
   buildPrompt,
   generateSummaryText,
   MAX_INPUT_CHARS,
@@ -25,7 +26,7 @@ describe("buildPrompt", () => {
     const p = buildPrompt(cases);
     expect(p).toContain("Bot não responde");
     expect(p).toContain("Erro no agendamento");
-    expect(p).toContain("resumo COMPLETO");
+    expect(p).toContain("Escreva o boletim **completo**");
   });
 
   it("respeita o limite de caracteres", () => {
@@ -33,9 +34,10 @@ describe("buildPrompt", () => {
       summary: "x".repeat(500),
       resolution: "y".repeat(500),
     }));
-    expect(buildPrompt(many).length).toBeLessThan(MAX_INPUT_CHARS + 2000);
+    expect(buildCasesBlock(many).length).toBeLessThan(MAX_INPUT_CHARS + 200);
   });
 });
+
 
 describe("generateSummaryText", () => {
   it("retorna o texto completo em uma chamada", async () => {
