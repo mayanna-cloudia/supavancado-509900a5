@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  buildCasesBlock,
   buildPrompt,
   generateSummaryText,
   MAX_INPUT_CHARS,
