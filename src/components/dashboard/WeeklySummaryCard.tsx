@@ -204,7 +204,15 @@ function WeekCard({ week }: { week: WeekGroup }) {
   async function generate() {
     setRunning(true);
     try {
-      const res = await generateWeeklySummary({ data: { cases: week.cases } });
+      const res = await generateWeeklySummary({
+        data: {
+          cases: week.cases,
+          meta: {
+            periodLabel: formatPeriodLabel(week.start, week.end),
+            escalationChannel: "#suporte-n3 no Discord",
+          },
+        },
+      });
       if (!res.ok) {
         toast.error(res.message);
         return;
