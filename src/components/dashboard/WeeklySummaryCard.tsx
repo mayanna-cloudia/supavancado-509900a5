@@ -3,6 +3,7 @@ import { supabase, type Case, type Analysis } from "@/lib/supabase";
 import { isTestCase } from "@/lib/discord";
 import { fmtDate } from "@/lib/format";
 import { generateWeeklySummary } from "@/lib/weeklySummary.functions";
+import { formatPeriodLabel } from "@/lib/weeklySummary.core";
 import { Sparkles, Loader2, RefreshCw, CalendarDays, ChevronDown, Copy, Check } from "lucide-react";
 import { toast } from "sonner";
 
