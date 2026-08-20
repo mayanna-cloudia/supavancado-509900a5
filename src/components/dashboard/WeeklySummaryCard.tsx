@@ -3,6 +3,7 @@ import { supabase, type Case, type Analysis } from "@/lib/supabase";
 import { isTestCase } from "@/lib/discord";
 import { fmtDate } from "@/lib/format";
 import { generateWeeklySummary } from "@/lib/weeklySummary.functions";
+import { formatPeriodLabel } from "@/lib/weeklySummary.core";
 import { Sparkles, Loader2, RefreshCw, CalendarDays, ChevronDown, Copy, Check } from "lucide-react";
 import { toast } from "sonner";
 
@@ -204,7 +205,15 @@ function WeekCard({ week }: { week: WeekGroup }) {
   async function generate() {
     setRunning(true);
     try {
-      const res = await generateWeeklySummary({ data: { cases: week.cases } });
+      const res = await generateWeeklySummary({
+        data: {
+          cases: week.cases,
+          meta: {
+            periodLabel: formatPeriodLabel(week.start, week.end),
+            escalationChannel: "#suporte-n3 no Discord",
+          },
+        },
+      });
       if (!res.ok) {
         toast.error(res.message);
         return;
