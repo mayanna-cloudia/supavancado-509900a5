@@ -54,13 +54,15 @@ Use esses valores literalmente, exatamente como escritos acima. Não infira o pe
 
 2. **No corpo do texto, use uma glosa curta — no máximo cinco palavras, entre parênteses.** Exemplo: "o token (senha de acesso entre sistemas) estava vencido". Explicações mais longas do que isso não vão entre parênteses: vão para o glossário no fim do documento.
 
-3. **Explique cada termo apenas na primeira aparição no documento inteiro**, não em cada seção. Nas vezes seguintes, use o termo sozinho.
+3. **Explique cada termo apenas na primeira aparição no documento inteiro**, não em cada seção. A linha "Foco da semana", os títulos de seção e os títulos dos destaques contam como aparição. Se um termo já foi explicado ali, use-o sozinho no resto do documento. Nunca repita uma glosa já dada — repetir polui o texto.
 
 4. **Todo termo técnico que aparecer no boletim precisa constar no glossário final**, com a definição completa. A glosa curta no corpo do texto serve para não travar a leitura; o glossário serve para quem quer entender de verdade.
 
 5. **Não use notação matemática ou estatística.** Nunca escreva "N=10", "n. 6" ou similar. Escreva por extenso: "10 casos", "6 vezes".
 
 6. **Nada de português europeu.** Escreva "reequilibramos", não "reequilibrámos".
+
+7. **Padronização.** Escreva os verbos das descrições no passado ("os esforços se concentraram", "tratamos instabilidades"). Nas categorias do Panorama Geral, use frases nominais começando por substantivo ("Correção de...", "Ajustes de..."), nunca frases começando por verbo conjugado ("Trata de..."). As dicas da tabela começam com letra maiúscula e verbo no imperativo ("Verifique...", "Oriente...", "Confira..."), nunca no infinitivo.
 
 ---
 
@@ -155,7 +157,17 @@ Liste, **em ordem alfabética**, todos os termos técnicos que apareceram no bol
 
 Quando fizer diferença para o trabalho do time, diga também a implicação prática. Exemplo: "**Token** — chave de acesso que autoriza dois sistemas a conversarem. Tokens expiram; quando isso acontece, a integração para e é preciso fazer login novamente para renovar."
 
-Inclua apenas termos que realmente apareceram no boletim.
+Monte o glossário DEPOIS de escrever o boletim inteiro, relendo o que você acabou de escrever.
+
+- Um termo só entra no glossário se aparecer **literalmente no texto do boletim**, acima da seção de glossário.
+
+- **Não** inclua termos que apareceram apenas nos casos de entrada e que você não usou no boletim.
+
+- Nomes internos de campos, tabelas ou variáveis que apareçam nos casos (por exemplo, nomes em minúsculas sem espaço) não devem ser usados no boletim nem no glossário. Descreva a coisa em português.
+
+- Antes de fechar, confira o caminho inverso: todo termo técnico que você usou no boletim precisa ter verbete. Se usou e não tem verbete, crie.
+
+- Formato obrigatório de cada linha, com marcador de lista: \`*   **Termo** — definição.\`
 
 \`\`\`
 ---
@@ -255,6 +267,26 @@ export type SummaryResult =
   | { ok: true; text: string; truncated: boolean }
   | { ok: false; message: string };
 
+const FIELD_LABELS = [
+  "Impacto para a clínica",
+  "Por que aconteceu",
+  "O que fizemos",
+  "Status",
+];
+
+/**
+ * Corrige blocos grudados na emenda entre chunks de continuação.
+ * Idempotente: texto já correto passa sem alteração.
+ */
+export function fixGluedBlocks(md: string): string {
+  const labels = FIELD_LABELS.map((l) => l.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+  return md
+    // rótulo em negrito grudado no texto anterior
+    .replace(new RegExp(`([^\\n])(\\*\\*(?:${labels}):\\*\\*)`, "g"), "$1\n\n$2")
+    // cabeçalho markdown grudado no texto anterior
+    .replace(/([^\n ])(#{1,6} )/g, "$1\n\n$2");
+}
+
 export async function generateSummaryText(
   cases: WeekCaseInput[],
   key: string,
@@ -313,7 +345,7 @@ export async function generateSummaryText(
     });
   }
 
-  const final = text.trim();
+  const final = fixGluedBlocks(text).trim();
   if (!final) return { ok: false, message: "A IA não retornou conteúdo." };
   return { ok: true, text: final, truncated };
 }
