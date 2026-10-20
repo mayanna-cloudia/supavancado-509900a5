@@ -3,12 +3,13 @@ import { CheckCircle2, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { sendPanelFeedback } from "@/lib/actions.functions";
 import { useTheme } from "@/lib/prefs";
+import { Novidades } from "@/components/sa/Novidades";
 
 // Rota escondida: fora do menu e fora dos buscadores. O link vai só para o time.
 export const Route = createFileRoute("/feedbacksupavancado")({
   head: () => ({
     meta: [
-      { title: "Feedback do painel · Suporte Avançado" },
+      { title: "Novidades e feedback · Suporte Avançado" },
       { name: "robots", content: "noindex, nofollow" },
     ],
   }),
@@ -75,20 +76,47 @@ function FeedbackPage() {
 
   return (
     <div className="min-h-screen bg-background px-4 py-10 text-foreground">
-      <div className="mx-auto flex max-w-[620px] flex-col gap-5">
+      <div className="mx-auto flex max-w-[760px] flex-col gap-5">
         <img
           src={dark ? "/cloudia-logo-dark.png" : "/cloudia-logo-light.png"}
           alt="Cloudia"
           className="h-[30px] w-auto self-start"
         />
-        <div className="bg-grad-brand flex flex-col gap-1.5 rounded-[14px] px-6 py-5 text-white">
+        <div className="bg-grad-brand flex flex-col gap-2 rounded-[14px] px-6 py-5 text-white">
           <div className="text-xs font-bold uppercase tracking-[0.08em] opacity-90">
-            Suporte Avançado
+            Suporte Avançado · outubro de 2026
           </div>
-          <h1 className="m-0 text-2xl font-bold leading-tight">
-            Conta pra gente o que achou do painel novo
+          <h1 className="m-0 text-2xl font-bold leading-tight [text-wrap:balance]">
+            O painel novo do Suporte Avançado está no ar
           </h1>
           <p className="m-0">
+            Mais rápido, no visual da Cloudia e mostrando primeiro o que precisa de alguém agora. O
+            bot do Discord também ganhou lembretes e avaliação do atendimento.
+          </p>
+          <div className="mt-1 flex flex-wrap gap-2">
+            <a
+              href="/"
+              className="rounded-[10px] bg-white px-4 py-2.5 font-bold text-[#2c4edc] no-underline hover:text-[#2c4edc]"
+            >
+              Abrir o painel
+            </a>
+            <a
+              href="#feedback"
+              className="rounded-[10px] border border-white/60 px-4 py-2.5 font-bold text-white no-underline hover:text-white"
+            >
+              Ir para o feedback
+            </a>
+          </div>
+        </div>
+
+        <Novidades />
+
+        <div id="feedback" className="flex scroll-mt-4 flex-col gap-1 pt-2">
+          <span className="self-start rounded-full bg-brand-soft px-2.5 py-0.5 text-xs font-bold text-brand-text">
+            Sua opinião
+          </span>
+          <h2 className="m-0 text-xl font-bold">Conta pra gente o que achou</h2>
+          <p className="m-0 text-muted-foreground">
             Leva 1 minuto. Cada pessoa responde uma vez, e só a coordenação do Suporte Avançado vê
             as respostas.
           </p>
