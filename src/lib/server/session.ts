@@ -1,5 +1,5 @@
 // Só roda no servidor (server functions). Senhas e chave de serviço vêm dos secrets do projeto:
-//   ADMIN_PASSWORD, COORD_PASSWORD, SESSION_SECRET (opcional), SUPABASE_SERVICE_ROLE_KEY, OPENROUTER_API_KEY
+//   ADMIN_PASSWORD, COORD_PASSWORD, SESSION_SECRET (opcional), SB_SERVICE_ROLE_KEY, OPENROUTER_API_KEY
 import { createClient } from "@supabase/supabase-js";
 import { SUPABASE_URL } from "../supabase";
 
@@ -10,9 +10,11 @@ function env(name: string): string | undefined {
   return process.env[name] || undefined;
 }
 
+// O Lovable reserva o prefixo SUPABASE_ para o banco que ele mesmo gerencia (o antigo).
+// Por isso a chave do banco novo vem só de SB_SERVICE_ROLE_KEY, nunca de SUPABASE_SERVICE_ROLE_KEY.
 export function serviceKey(): string {
-  const key = env("SUPABASE_SERVICE_ROLE_KEY") || env("SB_SERVICE_ROLE_KEY");
-  if (!key) throw new Error("Falta o secret SUPABASE_SERVICE_ROLE_KEY no servidor.");
+  const key = env("SB_SERVICE_ROLE_KEY");
+  if (!key) throw new Error("Falta o secret SB_SERVICE_ROLE_KEY no servidor.");
   return key;
 }
 
