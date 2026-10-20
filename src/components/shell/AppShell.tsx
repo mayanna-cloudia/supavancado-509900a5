@@ -15,6 +15,7 @@ import { useState, type ReactNode } from "react";
 import { useMenuCollapsed, useMounted, useTheme, useWho } from "@/lib/prefs";
 import { PANEL_PEOPLE } from "@/lib/team";
 import { brtParts } from "@/lib/sla";
+import { JobBanner } from "./JobBanner";
 
 type NavItem = { to: string; label: string; icon: typeof Home; restricted?: boolean };
 
@@ -237,6 +238,7 @@ export function AppShell({ children, actions }: { children: ReactNode; actions?:
         )}
 
         <main className="flex flex-1 flex-col gap-5 rounded-tl-2xl border-l border-t border-line bg-background px-7 pb-12 pt-6">
+          <JobBanner />
           {children}
         </main>
       </div>

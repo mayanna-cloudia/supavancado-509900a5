@@ -10,7 +10,7 @@ import {
   Sparkles,
   Download,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/shell/AppShell";
 import { clearSession, RequireAccess, sessionToken } from "@/components/shell/RequireAccess";
@@ -27,7 +27,8 @@ import {
   useLoader,
 } from "@/lib/data";
 import { discordThreadUrl } from "@/lib/discord";
-import { analyzeCase, generateWeekly, saveFeedback } from "@/lib/actions.functions";
+import { generateWeekly, saveFeedback } from "@/lib/actions.functions";
+import { startJob, useJob } from "@/lib/jobs";
 import { brtWeekStart, fmtDay, fmtMinutes, fmtWhen, isoWeekKey } from "@/lib/sla";
 import type { CaseWithAnalysis } from "@/lib/supabase";
 import { useMounted, useWho } from "@/lib/prefs";
@@ -447,43 +448,6 @@ function Weekly() {
 
 // ─── Ferramentas ─────────────────────────────────────────────────────────────
 
-function useBatch() {
-  const [state, setState] = useState<{
-    running: boolean;
-    done: number;
-    total: number;
-    errors: number;
-    label: string;
-  } | null>(null);
-  const cancel = useRef(false);
-  const run = async (label: string, ids: number[]) => {
-    if (!ids.length) {
-      toast.info("Nada para analisar.");
-      return;
-    }
-    cancel.current = false;
-    let errors = 0;
-    setState({ running: true, done: 0, total: ids.length, errors: 0, label });
-    for (let i = 0; i < ids.length; i++) {
-      if (cancel.current) break;
-      const res = await analyzeCase({ data: { token: sessionToken(), caseId: ids[i] } });
-      if (!res.ok) {
-        errors++;
-        if (res.message.includes("Sessão")) {
-          toast.error(res.message);
-          break;
-        }
-      }
-      setState({ running: true, done: i + 1, total: ids.length, errors, label });
-      // 1 segundo entre chamadas, para não sobrecarregar a IA
-      await new Promise((r) => setTimeout(r, 1000));
-    }
-    setState((s) => (s ? { ...s, running: false } : s));
-    toast.success(`${label}: concluído${errors ? ` com ${errors} erro(s)` : ""}.`);
-  };
-  return { state, run, cancel: () => (cancel.current = true) };
-}
-
 function ToolCard({
   icon: Icon,
   title,
@@ -522,8 +486,17 @@ function Tools({ onHistory }: { onHistory: () => void }) {
   const open = useLoader(loadOpenCaseIds, [], ["cases"]);
   const health = useLoader(loadBotHealth, [], ["messages"]);
   const feedbacks = useLoader(loadFeedbacks, []);
-  const batch = useBatch();
-  const s = batch.state;
+  const job = useJob();
+  const { person } = useWho();
+  const busy = job?.status === "running";
+  const start = (label: string, ids: number[] | null) => {
+    if (!ids?.length) {
+      toast.info("Nada para analisar.");
+      return;
+    }
+    if (!startJob(label, ids, person?.name ?? "Admin"))
+      toast.error("Já tem uma análise rodando. Espere terminar ou cancele.");
+  };
 
   const reasons = new Map<string, number>();
   for (const f of feedbacks.data ?? [])
@@ -533,39 +506,18 @@ function Tools({ onHistory }: { onHistory: () => void }) {
 
   return (
     <>
-      {s && (
-        <div className="card flex flex-col gap-2 px-5 py-4">
-          <div className="flex items-center justify-between gap-3">
-            <b>
-              {s.label}: {s.done} de {s.total}
-              {s.errors ? ` · ${s.errors} erro(s)` : ""}
-            </b>
-            {s.running && (
-              <button type="button" onClick={batch.cancel} className={btnSecondary}>
-                Parar
-              </button>
-            )}
-          </div>
-          <div className="h-2 overflow-hidden rounded-full bg-bar">
-            <div
-              className="h-full rounded-full"
-              style={{ width: `${(s.done / s.total) * 100}%`, background: "var(--grad-brand-bar)" }}
-            />
-          </div>
-        </div>
-      )}
       <div className="grid gap-3.5 [grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr))]">
         <ToolCard
           icon={Sparkles}
           title="Analisar pendentes"
-          desc="Roda a IA nos casos que ainda não têm análise, um por vez, com 1 segundo de pausa entre eles."
+          desc="Roda a IA nos casos que ainda não têm análise, um por vez, com 1 segundo de pausa entre eles. O andamento aparece no topo de todas as telas."
           status={pending.data ? `${pending.data.length} casos sem análise agora` : "contando…"}
         >
           <button
             type="button"
             className={btnPrimary}
-            disabled={!pending.data?.length || s?.running}
-            onClick={() => batch.run("Analisar pendentes", pending.data ?? []).then(pending.reload)}
+            disabled={!pending.data?.length || busy}
+            onClick={() => start("Analisando casos pendentes com a IA", pending.data)}
           >
             Analisar {pending.data?.length ?? ""} casos
           </button>
@@ -579,8 +531,8 @@ function Tools({ onHistory }: { onHistory: () => void }) {
           <button
             type="button"
             className={btnSecondary}
-            disabled={!open.data?.length || s?.running}
-            onClick={() => batch.run("Reanalisar abertos", open.data ?? [])}
+            disabled={!open.data?.length || busy}
+            onClick={() => start("Reanalisando casos em aberto com a IA", open.data)}
           >
             Reanalisar {open.data?.length ?? ""} casos
           </button>
