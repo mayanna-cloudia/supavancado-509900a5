@@ -1,11 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { AppShell } from "@/components/shell/AppShell";
-import { RequireAccess } from "@/components/shell/RequireAccess";
+import { RequireAccess, sessionToken } from "@/components/shell/RequireAccess";
+import { loadRatings, type Rating } from "@/lib/actions.functions";
 import { Empty, ErrorBox, Loading, PageTitle, Pill } from "@/components/sa/bits";
 import { downloadCsv, toCsv } from "@/lib/csv";
 import { loadCasesClosedBetween, useLoader, type LightCase } from "@/lib/data";
-import { brtMonthStart, brtParts, fmtDay, PERSON_TAG_AREA } from "@/lib/sla";
+import { brtMonthStart, brtParts, fmtDay, fmtWhen, PERSON_TAG_AREA } from "@/lib/sla";
 import { N2_PEOPLE } from "@/lib/team";
 import { useMounted } from "@/lib/prefs";
 
@@ -73,6 +74,19 @@ function Coordination() {
     [selected],
     ["cases"],
   );
+  // Avaliações enviadas no mês escolhido (lidas no servidor: notas não são públicas)
+  const ratings = useLoader(async () => {
+    const n = shift(sel, 1);
+    const res = await loadRatings({
+      data: {
+        token: sessionToken(),
+        from: brtMonthStart(sel.year, sel.month).toISOString(),
+        to: brtMonthStart(n.year, n.month).toISOString(),
+      },
+    });
+    if (!res.ok) throw new Error(res.message);
+    return res.rows;
+  }, [selected]);
 
   const inMonth = (m: Month) => {
     const from = brtMonthStart(m.year, m.month).getTime();
@@ -204,11 +218,21 @@ function Coordination() {
                       Mês anterior: {fmtPct(prev.pct)} ({prev.alone.length} de{" "}
                       {prev.involved.length})
                     </div>
+                    <RatingLine
+                      rows={(ratings.data ?? []).filter((r) => r.resolver_name === p.name)}
+                    />
                   </div>
                 </section>
               );
             })}
           </div>
+
+          <RatingsSection
+            rows={(ratings.data ?? []).filter((r) =>
+              N2_PEOPLE.some((p) => p.name === r.resolver_name),
+            )}
+            error={ratings.error}
+          />
 
           <div className="flex flex-wrap items-start gap-4">
             <section
@@ -347,5 +371,76 @@ function Metric({ value, label, hint }: { value: number; label: string; hint: st
       <div className="font-medium">{label}</div>
       <div className="text-xs text-muted-foreground">{hint}</div>
     </div>
+  );
+}
+
+const stars = (n: number) => "★".repeat(n) + "☆".repeat(5 - n);
+
+function ratingSummary(rows: Rating[]) {
+  const answered = rows.filter((r) => r.score != null);
+  const avg = answered.length ? answered.reduce((a, r) => a + r.score!, 0) / answered.length : null;
+  return { answered, avg, sent: rows.filter((r) => r.status !== "falhou").length };
+}
+
+/** Nota média de uma pessoa no mês, no card do PDI. */
+function RatingLine({ rows }: { rows: Rating[] }) {
+  const { answered, avg, sent } = ratingSummary(rows);
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-[13px]">
+      <span className="font-medium">Avaliação do atendimento:</span>
+      {avg == null ? (
+        <span className="text-muted-foreground">
+          {sent ? `${sent} enviada(s), nenhuma respondida ainda` : "nenhuma no mês"}
+        </span>
+      ) : (
+        <>
+          <span className="text-[#c99400]">{stars(Math.round(avg))}</span>
+          <b className="tabular-nums">{avg.toFixed(1).replace(".", ",")}</b>
+          <span className="text-muted-foreground">
+            ({answered.length} de {sent} responderam)
+          </span>
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Lista das avaliações respondidas no mês, com os comentários. */
+function RatingsSection({ rows, error }: { rows: Rating[]; error: string | null }) {
+  const answered = rows.filter((r) => r.score != null);
+  return (
+    <section aria-labelledby="aval-t" className="card overflow-hidden">
+      <div className="border-b border-line px-[18px] py-3.5">
+        <h2 id="aval-t" className="m-0 text-base font-bold">
+          Avaliações do atendimento
+        </h2>
+        <div className="text-[12.5px] text-muted-foreground">
+          Quem abriu o tópico recebe uma mensagem no Discord quando ele fecha e tem 2 dias para dar
+          a nota.
+        </div>
+      </div>
+      {error && <ErrorBox message={error} />}
+      {!error && answered.length === 0 && <Empty>Nenhuma avaliação respondida neste mês.</Empty>}
+      {answered.map((r) => (
+        <div
+          key={r.case_id}
+          className="flex flex-wrap items-start gap-x-4 gap-y-1 border-b border-line px-[18px] py-3"
+        >
+          <div className="min-w-[110px]">
+            <div className="text-[#c99400]">{stars(r.score!)}</div>
+            <div className="text-xs text-muted-foreground">
+              {fmtWhen(r.answered_at ?? r.sent_at)}
+            </div>
+          </div>
+          <div className="min-w-0 flex-[1_1_260px]">
+            <div className="font-medium">{r.cases?.thread_title ?? `Caso ${r.case_id}`}</div>
+            <div className="text-[12.5px] text-muted-foreground">
+              {r.resolver_name} · avaliado por {r.rater_name ?? "quem abriu o tópico"}
+            </div>
+            {r.comment && <div className="mt-1 text-[13.5px]">“{r.comment}”</div>}
+          </div>
+        </div>
+      ))}
+    </section>
   );
 }

@@ -133,3 +133,39 @@ export const generateWeekly = createServerFn({ method: "POST" })
       return fail(e);
     }
   });
+
+export type Rating = {
+  case_id: number;
+  rater_name: string | null;
+  resolver_name: string | null;
+  resolver_team: string | null;
+  score: number | null;
+  comment: string | null;
+  status: "enviada" | "respondida" | "falhou";
+  sent_at: string;
+  answered_at: string | null;
+  expires_at: string;
+  cases: { thread_title: string | null; idclinic: string | null } | null;
+};
+
+/** Avaliações enviadas num período. Notas não são públicas: só Coordenação e Admin. */
+export const loadRatings = createServerFn({ method: "POST" })
+  .validator((input: { token: string; from: string; to: string }) => input)
+  .handler(async ({ data }): Promise<Result<{ rows: Rating[] }>> => {
+    try {
+      await requireRole(data.token, "coord");
+      const { data: rows, error } = await serviceClient()
+        .from("case_ratings")
+        .select(
+          "case_id, rater_name, resolver_name, resolver_team, score, comment, status, sent_at, answered_at, expires_at, cases(thread_title, idclinic)",
+        )
+        .gte("sent_at", data.from)
+        .lt("sent_at", data.to)
+        .order("sent_at", { ascending: false })
+        .limit(2000);
+      if (error) return { ok: false, message: error.message };
+      return { ok: true, rows: (rows || []) as unknown as Rating[] };
+    } catch (e) {
+      return fail(e);
+    }
+  });
