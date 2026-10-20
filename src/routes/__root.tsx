@@ -1,3 +1,4 @@
+import { lazy } from "react";
 import { Outlet, Link, createRootRoute, HeadContent, Scripts, useRouter } from "@tanstack/react-router";
 import { Toaster } from "@/components/ui/sonner";
 
