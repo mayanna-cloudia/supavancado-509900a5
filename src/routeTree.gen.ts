@@ -9,19 +9,14 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as FeedbacksRouteImport } from './routes/feedbacks'
-import { Route as AdminFeedbacksRouteImport } from './routes/admin-feedbacks'
-import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AdminRouteImport } from './routes/admin'
+import { Route as AdminFeedbacksRouteImport } from './routes/admin-feedbacks'
+import { Route as FeedbacksRouteImport } from './routes/feedbacks'
 
-const FeedbacksRoute = FeedbacksRouteImport.update({
-  id: '/feedbacks',
-  path: '/feedbacks',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AdminFeedbacksRoute = AdminFeedbacksRouteImport.update({
-  id: '/admin-feedbacks',
-  path: '/admin-feedbacks',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminRoute = AdminRouteImport.update({
@@ -29,9 +24,14 @@ const AdminRoute = AdminRouteImport.update({
   path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const AdminFeedbacksRoute = AdminFeedbacksRouteImport.update({
+  id: '/admin-feedbacks',
+  path: '/admin-feedbacks',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FeedbacksRoute = FeedbacksRouteImport.update({
+  id: '/feedbacks',
+  path: '/feedbacks',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -71,18 +71,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/feedbacks': {
-      id: '/feedbacks'
-      path: '/feedbacks'
-      fullPath: '/feedbacks'
-      preLoaderRoute: typeof FeedbacksRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/admin-feedbacks': {
-      id: '/admin-feedbacks'
-      path: '/admin-feedbacks'
-      fullPath: '/admin-feedbacks'
-      preLoaderRoute: typeof AdminFeedbacksRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin': {
@@ -92,11 +85,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/admin-feedbacks': {
+      id: '/admin-feedbacks'
+      path: '/admin-feedbacks'
+      fullPath: '/admin-feedbacks'
+      preLoaderRoute: typeof AdminFeedbacksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/feedbacks': {
+      id: '/feedbacks'
+      path: '/feedbacks'
+      fullPath: '/feedbacks'
+      preLoaderRoute: typeof FeedbacksRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
