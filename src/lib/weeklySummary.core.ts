@@ -275,8 +275,8 @@ export function fixGluedBlocks(md: string): string {
     md
       // rótulo em negrito grudado no texto anterior
       .replace(new RegExp(`([^\\n])(\\*\\*(?:${labels}):\\*\\*)`, "g"), "$1\n\n$2")
-      // cabeçalho markdown grudado no texto anterior
-      .replace(/([^\n ])(#{1,6} )/g, "$1\n\n$2")
+      // cabeçalho markdown grudado no texto anterior (o "#" fica de fora: senão "### 1." vira "#" + "## 1.")
+      .replace(/([^\n #])(#{1,6} )/g, "$1\n\n$2")
   );
 }
 

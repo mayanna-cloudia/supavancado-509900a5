@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   buildCasesBlock,
   buildPrompt,
+  fixGluedBlocks,
   formatPeriodLabel,
   generateSummaryText,
   MAX_INPUT_CHARS,
@@ -137,5 +138,18 @@ describe("generateSummaryText", () => {
     const res = await generateSummaryText([], "k", meta, f as unknown as typeof fetch);
     expect(res.ok).toBe(false);
     expect(f).not.toHaveBeenCalled();
+  });
+});
+
+describe("fixGluedBlocks", () => {
+  it("não quebra títulos de dois ou três #", () => {
+    const md = "---\n\n## 🌟 Destaques\n\n### 1. Falhas";
+    expect(fixGluedBlocks(md)).toBe(md);
+  });
+
+  it("separa título grudado no texto anterior", () => {
+    expect(fixGluedBlocks("fim do parágrafo.## Panorama")).toBe(
+      "fim do parágrafo.\n\n## Panorama",
+    );
   });
 });
