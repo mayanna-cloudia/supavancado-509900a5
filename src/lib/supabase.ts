@@ -48,6 +48,7 @@ export type Message = {
   case_id: number;
   message_id: string;
   message_url: string | null;
+  author_id: string | null;
   author_username: string | null;
   content: string | null;
   attachments: Attachment[] | null;

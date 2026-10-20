@@ -1,16 +1,19 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { ExternalLink, Loader2, Paperclip } from "lucide-react";
-import { useEffect, useState } from "react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { ExternalLink, Loader2, Maximize2, Minimize2, Paperclip } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/shell/AppShell";
 import { DateField, Empty, ErrorBox, Loading, PrioPill, StatusPill } from "@/components/sa/bits";
 import { downloadCsv, toCsv } from "@/lib/csv";
 import {
   loadCaseDetail,
+  loadAuthorUsernames,
+  loadClinicHistory,
   loadCasesPage,
   loadOpenBoard,
   PAGE_SIZE,
   useLoader,
   type CaseFilters,
+  type ClinicHistoryRow,
 } from "@/lib/data";
 import { discordThreadUrl } from "@/lib/discord";
 import { AREA_NAME, caseArea, fmtMinutes, fmtWhen, waitingInfo } from "@/lib/sla";
@@ -18,8 +21,12 @@ import type { CaseWithAnalysis, Message } from "@/lib/supabase";
 import { lookupMember, isResolutive } from "@/lib/team";
 import { useMounted } from "@/lib/prefs";
 import { CaseRatingBox } from "@/components/sa/Ratings";
+import { MessageText } from "@/components/sa/MessageText";
 
-type Search = CaseFilters & { caso?: number };
+type Search = CaseFilters & {
+  caso?: number;
+  /** "cheio" = detalhe do caso em tela cheia */ ver?: "cheio";
+};
 
 /** Sem status na URL = só os abertos. */
 const withDefaults = (s: Search): CaseFilters => ({ ...s, status: s.status ?? "abertos" });
@@ -43,6 +50,7 @@ export const Route = createFileRoute("/casos")({
     ate: str(s.ate),
     pagina: Number(s.pagina) > 1 ? Number(s.pagina) : undefined,
     caso: Number(s.caso) > 0 ? Number(s.caso) : undefined,
+    ver: s.ver === "cheio" ? "cheio" : undefined,
   }),
   component: CasesPage,
 });
@@ -163,6 +171,8 @@ function Cases() {
 
   const rows = list.data?.rows ?? [];
   const selectedId = search.caso ?? rows[0]?.id;
+  // Tela cheia: esconde a lista e o detalhe ocupa a largura toda (?ver=cheio)
+  const full = search.ver === "cheio" && !!selectedId;
   const page = search.pagina ?? 1;
   const pages = Math.max(1, Math.ceil((list.data?.count ?? 0) / PAGE_SIZE));
 
@@ -270,6 +280,7 @@ function Cases() {
       <div className="flex flex-wrap items-start gap-4">
         <section
           aria-label="Lista de casos"
+          hidden={full}
           className="card min-w-0 flex-[999_1_520px] overflow-hidden"
         >
           <div className="flex justify-between border-b border-line px-4 py-2.5 text-[12.5px] text-muted-foreground">
@@ -317,8 +328,33 @@ function Cases() {
           )}
         </section>
 
-        <aside aria-label="Detalhe do caso" className="card flex min-w-0 flex-[1_1_380px] flex-col">
-          {selectedId ? <CaseDetail id={selectedId} /> : <Empty>Escolha um caso na lista.</Empty>}
+        <aside
+          aria-label="Detalhe do caso"
+          className={[
+            "card flex min-w-0 flex-col",
+            // Ao lado da lista, o detalhe acompanha a rolagem e rola por dentro
+            full
+              ? "flex-[1_1_100%]"
+              : "flex-[1_1_420px] lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto",
+          ].join(" ")}
+        >
+          {selectedId ? (
+            <CaseDetail
+              id={selectedId}
+              full={full}
+              onToggleFull={() =>
+                navigate({
+                  search: (prev) => ({ ...prev, ver: full ? undefined : "cheio" }),
+                  replace: true,
+                })
+              }
+              onPick={(id) =>
+                navigate({ search: (prev) => ({ ...prev, caso: id }), replace: true })
+              }
+            />
+          ) : (
+            <Empty>Escolha um caso na lista.</Empty>
+          )}
         </aside>
       </div>
     </>
@@ -384,8 +420,38 @@ function CaseRow({ c, on, onPick }: { c: CaseWithAnalysis; on: boolean; onPick: 
   );
 }
 
-function CaseDetail({ id }: { id: number }) {
+function CaseDetail({
+  id,
+  full,
+  onToggleFull,
+  onPick,
+}: {
+  id: number;
+  full: boolean;
+  onToggleFull: () => void;
+  onPick: (id: number) => void;
+}) {
   const detail = useLoader(() => loadCaseDetail(id), [id], ["messages", "analyses"]);
+  const idclinic = detail.data?.case.idclinic ?? null;
+  const history = useLoader(
+    () => (idclinic ? loadClinicHistory(idclinic, id) : Promise.resolve([] as ClinicHistoryRow[])),
+    [idclinic, id],
+  );
+  // Menções <@123…> viram "@Nome": quem escreveu neste tópico ou, se não, em qualquer outro
+  const mentioned = useMemo(() => {
+    const ids = new Set<string>();
+    for (const msg of detail.data?.messages ?? [])
+      for (const m of (msg.content ?? "").matchAll(/<@!?(\d+)>/g)) ids.add(m[1]);
+    return [...ids].sort();
+  }, [detail.data]);
+  const others = useLoader(() => loadAuthorUsernames(mentioned), [mentioned.join(",")]);
+  const names = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const [id, username] of others.data ?? []) m.set(id, lookupMember(username).name);
+    for (const msg of detail.data?.messages ?? [])
+      if (msg.author_id) m.set(msg.author_id, lookupMember(msg.author_username).name);
+    return m;
+  }, [detail.data, others.data]);
   if (detail.loading && !detail.data) return <Loading />;
   if (detail.error && !detail.data) return <ErrorBox message={detail.error} />;
   if (!detail.data) return null;
@@ -427,27 +493,84 @@ function CaseDetail({ id }: { id: number }) {
           </div>
         )}
         <CaseRatingBox caseId={c.id} />
-        <a
-          href={discordThreadUrl(c)}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex h-[38px] items-center gap-1.5 self-start rounded-lg bg-[#3760ff] px-3.5 font-medium text-white no-underline hover:text-white"
-        >
-          <ExternalLink className="h-4 w-4" />
-          Abrir no Discord
-        </a>
+        <div className="flex flex-wrap gap-2">
+          <a
+            href={discordThreadUrl(c)}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex h-[38px] items-center gap-1.5 rounded-lg bg-[#3760ff] px-3.5 font-medium text-white no-underline hover:text-white"
+          >
+            <ExternalLink className="h-4 w-4" />
+            Abrir no Discord
+          </a>
+          <button
+            type="button"
+            onClick={onToggleFull}
+            className="inline-flex h-[38px] items-center gap-1.5 rounded-lg border border-border bg-card px-3.5 font-medium text-foreground"
+          >
+            {full ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            {full ? "Voltar para a lista" : "Ver em tela cheia"}
+          </button>
+        </div>
       </div>
-      <div className="flex flex-col gap-3.5 px-[18px] py-4">
-        {messages.length === 0 && <Empty>Sem mensagens.</Empty>}
-        {messages.map((m) => (
-          <Bubble key={m.id} m={m} />
-        ))}
+      <div className={full ? "flex flex-wrap items-start gap-x-6" : "flex flex-col"}>
+        <div className="flex min-w-0 flex-[999_1_480px] flex-col gap-3.5 px-[18px] py-4">
+          <div className="text-xs font-bold tracking-[0.06em] text-muted-foreground">
+            CONVERSA · {messages.length} {messages.length === 1 ? "MENSAGEM" : "MENSAGENS"}
+          </div>
+          {messages.length === 0 && <Empty>Sem mensagens.</Empty>}
+          {messages.map((m) => (
+            <Bubble key={m.id} m={m} names={names} />
+          ))}
+        </div>
+        {idclinic && (history.data?.length ?? 0) > 0 && (
+          <section
+            aria-label="Outros casos desta clínica"
+            className={[
+              "flex min-w-0 flex-col gap-1 px-[18px] py-4",
+              full ? "flex-[1_1_300px]" : "border-t border-line",
+            ].join(" ")}
+          >
+            <div className="text-xs font-bold tracking-[0.06em] text-muted-foreground">
+              OUTROS CASOS DO IDCLINIC {idclinic}
+            </div>
+            {(history.data ?? []).map((h) => (
+              <button
+                key={h.id}
+                type="button"
+                onClick={() => onPick(h.id)}
+                className="flex w-full flex-wrap items-center gap-2 rounded-lg px-2 py-2 text-left text-foreground hover:bg-hover"
+              >
+                <PrioPill p={h.priority} />
+                <span className="min-w-0 flex-[1_1_180px]">
+                  <span className="block truncate text-[13.5px] font-medium">{h.thread_title}</span>
+                  <span className="block text-[12px] text-muted-foreground">
+                    {fmtWhen(h.opened_at)}
+                    {h.analyses?.problem_label ? ` · ${h.analyses.problem_label}` : ""}
+                  </span>
+                </span>
+                <StatusPill
+                  status={h.status}
+                  waitingClient={h.analyses?.waiting_for === "client"}
+                  noResponse={h.no_response}
+                />
+              </button>
+            ))}
+            <Link
+              to="/casos"
+              search={{ idclinic, status: "todos" }}
+              className="mt-1 px-2 text-[13px] font-bold"
+            >
+              Ver todos os casos desta clínica
+            </Link>
+          </section>
+        )}
       </div>
     </>
   );
 }
 
-function Bubble({ m }: { m: Message }) {
+function Bubble({ m, names }: { m: Message; names: Map<string, string> }) {
   const member = lookupMember(m.author_username);
   const ours = isResolutive(member.area);
   const initials = member.name
@@ -470,9 +593,9 @@ function Bubble({ m }: { m: Message }) {
         </div>
         {m.content && (
           <div
-            className={`self-start whitespace-pre-wrap break-words rounded-[4px_12px_12px_12px] px-3 py-2 ${ours ? "bg-brand-soft" : "bg-hover"}`}
+            className={`max-w-full self-start rounded-[4px_12px_12px_12px] px-3 py-2 [overflow-wrap:anywhere] ${ours ? "bg-brand-soft" : "bg-hover"}`}
           >
-            {m.content}
+            <MessageText text={m.content} names={names} />
           </div>
         )}
         {att.length > 0 && (

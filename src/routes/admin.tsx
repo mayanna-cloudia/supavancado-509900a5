@@ -27,7 +27,12 @@ import {
   useLoader,
 } from "@/lib/data";
 import { discordThreadUrl } from "@/lib/discord";
-import { generateWeekly, loadRatings, saveFeedback } from "@/lib/actions.functions";
+import {
+  generateWeekly,
+  loadPanelFeedback,
+  loadRatings,
+  saveFeedback,
+} from "@/lib/actions.functions";
 import { RatingsList, RatingSummary } from "@/components/sa/Ratings";
 import { startJob, useJob } from "@/lib/jobs";
 import {
@@ -53,7 +58,7 @@ export const Route = createFileRoute("/admin")({
   ),
 });
 
-type Tab = "validar" | "boletim" | "avaliacoes" | "ferramentas" | "historico";
+type Tab = "validar" | "boletim" | "avaliacoes" | "feedback" | "ferramentas" | "historico";
 
 function Admin() {
   const mounted = useMounted();
@@ -63,6 +68,7 @@ function Admin() {
     ["validar", "Validar análises", queue.data?.length],
     ["boletim", "Boletim da semana"],
     ["avaliacoes", "Avaliações"],
+    ["feedback", "Feedback do painel"],
     ["ferramentas", "Ferramentas"],
     ["historico", "Histórico de validações"],
   ];
@@ -104,6 +110,7 @@ function Admin() {
       {tab === "boletim" && <Weekly />}
       {tab === "ferramentas" && <Tools onHistory={() => setTab("historico")} />}
       {tab === "avaliacoes" && <AdminRatings />}
+      {tab === "feedback" && <PanelFeedbackTab />}
       {tab === "historico" && <History />}
     </>
   );
@@ -828,6 +835,134 @@ function AdminRatings() {
             <RatingsList rows={rows} />
           </section>
         </>
+      )}
+    </>
+  );
+}
+
+// ─── Feedback do painel (rota /feedbacksupavancado) ─────────────────────────
+
+function PanelFeedbackTab() {
+  const data = useLoader(async () => {
+    const res = await loadPanelFeedback({ data: { token: sessionToken() } });
+    if (!res.ok) throw new Error(res.message);
+    return res.rows;
+  }, []);
+  const rows = data.data ?? [];
+  const avg = rows.length ? rows.reduce((a, r) => a + r.score, 0) / rows.length : null;
+  const screens = new Map<string, number>();
+  for (const r of rows) if (r.screen) screens.set(r.screen, (screens.get(r.screen) ?? 0) + 1);
+  const link = "https://supavancado.lovable.app/feedbacksupavancado";
+
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(link);
+      toast.success("Link copiado.");
+    } catch {
+      toast.error("Não consegui copiar. Selecione o link e copie.");
+    }
+  };
+  const exportCsv = () =>
+    downloadCsv(
+      "feedback-painel.csv",
+      toCsv(
+        [
+          "Enviado em",
+          "Nome",
+          "E-mail",
+          "Nota",
+          "Tela que mais usa",
+          "O que ficou bom",
+          "O que falta ou atrapalha",
+        ],
+        rows.map((r) => [
+          fmtWhen(r.created_at),
+          r.name,
+          r.email,
+          r.score,
+          r.screen,
+          r.good,
+          r.improve,
+        ]),
+      ),
+    );
+
+  return (
+    <>
+      <section className="card flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+        <div className="min-w-0">
+          <div className="font-bold">Link para o time</div>
+          <div className="break-all text-[13px] text-muted-foreground">{link}</div>
+          <div className="text-[12.5px] text-muted-foreground">
+            Fora do menu e dos buscadores. Uma resposta por e-mail.
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <button type="button" onClick={copyLink} className={btnSecondary}>
+            Copiar link
+          </button>
+          <button
+            type="button"
+            onClick={exportCsv}
+            className={btnSecondary}
+            disabled={!rows.length}
+          >
+            Exportar CSV
+          </button>
+        </div>
+      </section>
+      {data.error && <ErrorBox message={data.error} />}
+      {data.loading && !data.data ? (
+        <Loading />
+      ) : (
+        <section aria-labelledby="fbp-t" className="card overflow-hidden">
+          <div className="flex flex-wrap items-center gap-2 border-b border-line px-[18px] py-3.5">
+            <h2 id="fbp-t" className="m-0 mr-2 text-base font-bold">
+              Respostas do time
+            </h2>
+            <Pill tone="brand">
+              {rows.length} resposta{rows.length === 1 ? "" : "s"}
+            </Pill>
+            {avg != null && <Pill tone="brand">nota média {avg.toFixed(1).replace(".", ",")}</Pill>}
+            {[...screens.entries()]
+              .sort((a, b) => b[1] - a[1])
+              .map(([k, n]) => (
+                <Pill key={k} tone="gray">
+                  {k}: {n}
+                </Pill>
+              ))}
+          </div>
+          {rows.length === 0 && (
+            <Empty>Ninguém respondeu ainda. Mande o link acima para o time.</Empty>
+          )}
+          {rows.map((r) => (
+            <div key={r.id} className="flex flex-col gap-1 border-b border-line px-[18px] py-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <b>{r.name}</b>
+                <span className="text-[12.5px] text-muted-foreground">{r.email}</span>
+                <Pill tone={r.score >= 4 ? "green" : r.score === 3 ? "yellow" : "red"}>
+                  nota {r.score}
+                </Pill>
+                {r.screen && (
+                  <span className="text-[12.5px] text-muted-foreground">mais usa: {r.screen}</span>
+                )}
+                <span className="ml-auto text-xs text-muted-foreground">
+                  {fmtWhen(r.created_at)}
+                </span>
+              </div>
+              {r.good && (
+                <div className="text-[13.5px]">
+                  <b>Ficou bom:</b> {r.good}
+                </div>
+              )}
+              {r.improve && (
+                <div className="text-[13.5px]">
+                  <b>Falta ou atrapalha:</b> {r.improve}
+                </div>
+              )}
+            </div>
+          ))}
+        </section>
       )}
     </>
   );

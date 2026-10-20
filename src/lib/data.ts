@@ -238,6 +238,27 @@ export async function loadCasesPage(f: CaseFilters, all = false) {
   return { rows: notTest((data || []) as unknown as CaseWithAnalysis[]), count: count ?? 0 };
 }
 
+/** Outros casos da mesma clínica, para dar contexto no detalhe. */
+export type ClinicHistoryRow = Pick<
+  CaseWithAnalysis,
+  "id" | "thread_title" | "status" | "priority" | "opened_at" | "closed_at" | "no_response"
+> & { analyses: Pick<Analysis, "problem_label" | "waiting_for"> | null };
+
+export async function loadClinicHistory(idclinic: string, exceptId: number) {
+  const { data, error } = await supabase
+    .from("cases")
+    .select(
+      "id, thread_title, status, priority, opened_at, closed_at, no_response, analyses(problem_label, waiting_for)",
+    )
+    .eq("idclinic", idclinic)
+    .eq("archived", false)
+    .neq("id", exceptId)
+    .order("opened_at", { ascending: false })
+    .limit(8);
+  if (error) throw new Error(error.message);
+  return notTest((data || []) as unknown as ClinicHistoryRow[]);
+}
+
 export async function loadCaseDetail(id: number) {
   const [{ data: c, error }, { data: msgs }] = await Promise.all([
     supabase.from("cases").select("*, analyses(*)").eq("id", id).single(),
@@ -332,4 +353,19 @@ export async function loadBotHealth() {
     lastSyncAt: (t?.[0] as { last_synced_at: string } | undefined)?.last_synced_at ?? null,
     threads: count ?? 0,
   };
+}
+
+/** Usuário do Discord de quem já escreveu em algum tópico, por id (para "@Nome" nas menções). */
+export async function loadAuthorUsernames(ids: string[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  if (!ids.length) return out;
+  const { data } = await supabase
+    .from("messages")
+    .select("author_id, author_username")
+    .in("author_id", ids.slice(0, 100))
+    .not("author_username", "is", null)
+    .limit(500);
+  for (const r of (data || []) as { author_id: string; author_username: string }[])
+    if (!out.has(r.author_id)) out.set(r.author_id, r.author_username);
+  return out;
 }

@@ -15,6 +15,7 @@ import { Route as AdminFeedbacksRouteImport } from './routes/admin-feedbacks'
 import { Route as CasosRouteImport } from './routes/casos'
 import { Route as CoordenacaoRouteImport } from './routes/coordenacao'
 import { Route as FeedbacksRouteImport } from './routes/feedbacks'
+import { Route as FeedbacksupavancadoRouteImport } from './routes/feedbacksupavancado'
 import { Route as ProblemasRouteImport } from './routes/problemas'
 
 const IndexRoute = IndexRouteImport.update({
@@ -47,6 +48,11 @@ const FeedbacksRoute = FeedbacksRouteImport.update({
   path: '/feedbacks',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FeedbacksupavancadoRoute = FeedbacksupavancadoRouteImport.update({
+  id: '/feedbacksupavancado',
+  path: '/feedbacksupavancado',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProblemasRoute = ProblemasRouteImport.update({
   id: '/problemas',
   path: '/problemas',
@@ -60,6 +66,7 @@ export interface FileRoutesByFullPath {
   '/casos': typeof CasosRoute
   '/coordenacao': typeof CoordenacaoRoute
   '/feedbacks': typeof FeedbacksRoute
+  '/feedbacksupavancado': typeof FeedbacksupavancadoRoute
   '/problemas': typeof ProblemasRoute
 }
 export interface FileRoutesByTo {
@@ -69,6 +76,7 @@ export interface FileRoutesByTo {
   '/casos': typeof CasosRoute
   '/coordenacao': typeof CoordenacaoRoute
   '/feedbacks': typeof FeedbacksRoute
+  '/feedbacksupavancado': typeof FeedbacksupavancadoRoute
   '/problemas': typeof ProblemasRoute
 }
 export interface FileRoutesById {
@@ -79,6 +87,7 @@ export interface FileRoutesById {
   '/casos': typeof CasosRoute
   '/coordenacao': typeof CoordenacaoRoute
   '/feedbacks': typeof FeedbacksRoute
+  '/feedbacksupavancado': typeof FeedbacksupavancadoRoute
   '/problemas': typeof ProblemasRoute
 }
 export interface FileRouteTypes {
@@ -90,6 +99,7 @@ export interface FileRouteTypes {
     | '/casos'
     | '/coordenacao'
     | '/feedbacks'
+    | '/feedbacksupavancado'
     | '/problemas'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -99,6 +109,7 @@ export interface FileRouteTypes {
     | '/casos'
     | '/coordenacao'
     | '/feedbacks'
+    | '/feedbacksupavancado'
     | '/problemas'
   id:
     | '__root__'
@@ -108,6 +119,7 @@ export interface FileRouteTypes {
     | '/casos'
     | '/coordenacao'
     | '/feedbacks'
+    | '/feedbacksupavancado'
     | '/problemas'
   fileRoutesById: FileRoutesById
 }
@@ -118,6 +130,7 @@ export interface RootRouteChildren {
   CasosRoute: typeof CasosRoute
   CoordenacaoRoute: typeof CoordenacaoRoute
   FeedbacksRoute: typeof FeedbacksRoute
+  FeedbacksupavancadoRoute: typeof FeedbacksupavancadoRoute
   ProblemasRoute: typeof ProblemasRoute
 }
 
@@ -165,6 +178,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FeedbacksRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/feedbacksupavancado': {
+      id: '/feedbacksupavancado'
+      path: '/feedbacksupavancado'
+      fullPath: '/feedbacksupavancado'
+      preLoaderRoute: typeof FeedbacksupavancadoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/problemas': {
       id: '/problemas'
       path: '/problemas'
@@ -182,6 +202,7 @@ const rootRouteChildren: RootRouteChildren = {
   CasosRoute: CasosRoute,
   CoordenacaoRoute: CoordenacaoRoute,
   FeedbacksRoute: FeedbacksRoute,
+  FeedbacksupavancadoRoute: FeedbacksupavancadoRoute,
   ProblemasRoute: ProblemasRoute,
 }
 export const routeTree = rootRouteImport

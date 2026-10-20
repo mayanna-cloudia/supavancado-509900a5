@@ -214,3 +214,9 @@
     }
   }
 }
+
+/* O Lovable injeta o selo "Edit with Lovable" no site publicado. O jeito oficial de tirar é
+   em Project Settings no Lovable; isto esconde o selo também onde a opção não estiver ligada. */
+#lovable-badge {
+  display: none !important;
+}

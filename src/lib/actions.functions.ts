@@ -189,3 +189,77 @@ export const loadCaseRating = createServerFn({ method: "POST" })
       return fail(e);
     }
   });
+
+export type PanelFeedback = {
+  id: number;
+  name: string;
+  email: string;
+  score: number;
+  screen: string | null;
+  good: string | null;
+  improve: string | null;
+  created_at: string;
+};
+
+const SCREENS = ["Hoje", "Casos", "Problemas que voltam", "Ainda não usei"];
+const clean = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
+
+/** Feedback do painel (rota /feedbacksupavancado). Aberto, uma resposta por e-mail. */
+export const sendPanelFeedback = createServerFn({ method: "POST" })
+  .validator(
+    (input: {
+      name: string;
+      email: string;
+      score: number;
+      screen?: string;
+      good?: string;
+      improve?: string;
+    }) => input,
+  )
+  .handler(async ({ data }): Promise<Result<{ already?: boolean }>> => {
+    try {
+      const name = clean(data.name, 120);
+      const email = clean(data.email, 200).toLowerCase();
+      const score = Number(data.score);
+      if (name.length < 2) return { ok: false, message: "Escreva seu nome." };
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email))
+        return { ok: false, message: "Esse e-mail não parece válido." };
+      if (!(score >= 1 && score <= 5)) return { ok: false, message: "Escolha uma nota de 1 a 5." };
+      const screen = SCREENS.includes(clean(data.screen, 60)) ? clean(data.screen, 60) : null;
+      const { error } = await serviceClient()
+        .from("panel_feedback")
+        .insert({
+          name,
+          email,
+          score,
+          screen,
+          good: clean(data.good, 1500) || null,
+          improve: clean(data.improve, 1500) || null,
+        });
+      if (error) {
+        if (/duplicate|unique/i.test(error.message)) return { ok: true, already: true };
+        return { ok: false, message: "Não consegui salvar agora. Tente de novo em instantes." };
+      }
+      return { ok: true };
+    } catch (e) {
+      return fail(e);
+    }
+  });
+
+/** Todas as respostas de feedback do painel. Só Admin. */
+export const loadPanelFeedback = createServerFn({ method: "POST" })
+  .validator((input: { token: string }) => input)
+  .handler(async ({ data }): Promise<Result<{ rows: PanelFeedback[] }>> => {
+    try {
+      await requireRole(data.token, "admin");
+      const { data: rows, error } = await serviceClient()
+        .from("panel_feedback")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(2000);
+      if (error) return { ok: false, message: error.message };
+      return { ok: true, rows: (rows || []) as PanelFeedback[] };
+    } catch (e) {
+      return fail(e);
+    }
+  });
