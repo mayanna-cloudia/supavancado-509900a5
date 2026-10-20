@@ -8,8 +8,8 @@ export type WeekMeta = {
   escalationChannel: string;
 };
 
-export const GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
-export const MODEL = "google/gemini-3.6-flash";
+export const GATEWAY_URL = "https://openrouter.ai/api/v1/chat/completions";
+export const MODEL = "openai/gpt-6-luna";
 export const MAX_TOKENS = 8000;
 /** Máximo de caracteres do bloco de casos enviado ao modelo. */
 export const MAX_INPUT_CHARS = 60_000;
@@ -225,9 +225,7 @@ export function buildCasesBlock(cases: WeekCaseInput[]): CasesBlock {
 function assertNoPlaceholders(prompt: string) {
   const found = prompt.match(/\{\{[A-Z_]+\}\}/g);
   if (found) {
-    throw new Error(
-      `Variável não substituída no prompt: ${[...new Set(found)].join(", ")}`,
-    );
+    throw new Error(`Variável não substituída no prompt: ${[...new Set(found)].join(", ")}`);
   }
 }
 
@@ -249,8 +247,7 @@ export function buildPrompt(cases: WeekCaseInput[], meta: WeekMeta): string {
     PROMPT_HEAD.replaceAll("{{PERIODO}}", periodLabel)
       .replaceAll("{{TOTAL_CASOS}}", String(cases.length))
       .replaceAll("{{CANAL_ESCALONAMENTO}}", channel)
-      .replaceAll("{{NOTA_TRUNCAMENTO}}", truncationNote) +
-    `<casos>\n${block}\n</casos>\n`;
+      .replaceAll("{{NOTA_TRUNCAMENTO}}", truncationNote) + `<casos>\n${block}\n</casos>\n`;
 
   assertNoPlaceholders(prompt);
   return prompt;
@@ -264,15 +261,9 @@ type GatewayChoice = {
 };
 
 export type SummaryResult =
-  | { ok: true; text: string; truncated: boolean }
-  | { ok: false; message: string };
+  { ok: true; text: string; truncated: boolean } | { ok: false; message: string };
 
-const FIELD_LABELS = [
-  "Impacto para a clínica",
-  "Por que aconteceu",
-  "O que fizemos",
-  "Status",
-];
+const FIELD_LABELS = ["Impacto para a clínica", "Por que aconteceu", "O que fizemos", "Status"];
 
 /**
  * Corrige blocos grudados na emenda entre chunks de continuação.
@@ -280,11 +271,13 @@ const FIELD_LABELS = [
  */
 export function fixGluedBlocks(md: string): string {
   const labels = FIELD_LABELS.map((l) => l.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
-  return md
-    // rótulo em negrito grudado no texto anterior
-    .replace(new RegExp(`([^\\n])(\\*\\*(?:${labels}):\\*\\*)`, "g"), "$1\n\n$2")
-    // cabeçalho markdown grudado no texto anterior
-    .replace(/([^\n ])(#{1,6} )/g, "$1\n\n$2");
+  return (
+    md
+      // rótulo em negrito grudado no texto anterior
+      .replace(new RegExp(`([^\\n])(\\*\\*(?:${labels}):\\*\\*)`, "g"), "$1\n\n$2")
+      // cabeçalho markdown grudado no texto anterior
+      .replace(/([^\n ])(#{1,6} )/g, "$1\n\n$2")
+  );
 }
 
 export async function generateSummaryText(
@@ -309,17 +302,30 @@ export async function generateSummaryText(
   for (let attempt = 0; attempt <= MAX_CONTINUATIONS; attempt++) {
     const res = await fetchImpl(GATEWAY_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "Lovable-API-Key": key },
-      body: JSON.stringify({ model: MODEL, max_tokens: MAX_TOKENS, messages }),
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${key}`,
+        "HTTP-Referer": "https://cloudia.com.br",
+        "X-Title": "Cloudia Suporte Avancado",
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        max_tokens: MAX_TOKENS,
+        reasoning: { effort: "low" },
+        messages,
+      }),
     });
 
     if (!res.ok) {
       if (text) return { ok: true, text, truncated: true };
       const body = await res.text().catch(() => "");
       if (res.status === 429)
-        return { ok: false, message: "Limite de requisições atingido. Tente novamente em instantes." };
+        return {
+          ok: false,
+          message: "Limite de requisições atingido. Tente novamente em instantes.",
+        };
       if (res.status === 402)
-        return { ok: false, message: "Créditos de IA esgotados. Adicione créditos no workspace." };
+        return { ok: false, message: "Créditos de IA esgotados. Adicione créditos no OpenRouter." };
       return { ok: false, message: `Erro da IA (${res.status}): ${body.slice(0, 180)}` };
     }
 

@@ -17,21 +17,24 @@ export const AREA_LABEL: Record<Area, string> = {
 
 // Tailwind class fragments per area (background + text + border)
 export const AREA_BADGE: Record<Area, string> = {
-  SuporteN2: "bg-[oklch(0.78_0.14_230/0.15)] text-[oklch(0.85_0.14_230)] border-[oklch(0.78_0.14_230/0.4)]",
-  Chatbot:   "bg-[oklch(0.65_0.22_295/0.15)] text-[oklch(0.78_0.18_295)] border-[oklch(0.65_0.22_295/0.4)]",
-  AM:        "bg-[oklch(0.72_0.17_162/0.15)] text-[oklch(0.82_0.17_162)] border-[oklch(0.72_0.17_162/0.4)]",
-  QA:        "bg-[oklch(0.80_0.16_80/0.15)]  text-[oklch(0.88_0.16_80)]  border-[oklch(0.80_0.16_80/0.4)]",
-  CEO:       "bg-[oklch(0.74_0.18_47/0.15)]  text-[oklch(0.84_0.18_47)]  border-[oklch(0.74_0.18_47/0.4)]",
-  PosVenda:  "bg-[oklch(0.55_0.03_260/0.2)]  text-[oklch(0.78_0.02_260)] border-[oklch(0.55_0.03_260/0.4)]",
+  SuporteN2:
+    "bg-[oklch(0.78_0.14_230/0.15)] text-[oklch(0.85_0.14_230)] border-[oklch(0.78_0.14_230/0.4)]",
+  Chatbot:
+    "bg-[oklch(0.65_0.22_295/0.15)] text-[oklch(0.78_0.18_295)] border-[oklch(0.65_0.22_295/0.4)]",
+  AM: "bg-[oklch(0.72_0.17_162/0.15)] text-[oklch(0.82_0.17_162)] border-[oklch(0.72_0.17_162/0.4)]",
+  QA: "bg-[oklch(0.80_0.16_80/0.15)]  text-[oklch(0.88_0.16_80)]  border-[oklch(0.80_0.16_80/0.4)]",
+  CEO: "bg-[oklch(0.74_0.18_47/0.15)]  text-[oklch(0.84_0.18_47)]  border-[oklch(0.74_0.18_47/0.4)]",
+  PosVenda:
+    "bg-[oklch(0.55_0.03_260/0.2)]  text-[oklch(0.78_0.02_260)] border-[oklch(0.55_0.03_260/0.4)]",
 };
 
 export const AREA_COLOR_HEX: Record<Area, string> = {
   SuporteN2: "#38bdf8",
-  Chatbot:   "#8b5cf6",
-  AM:        "#10b981",
-  QA:        "#f59e0b",
-  CEO:       "#f97316",
-  PosVenda:  "#64748b",
+  Chatbot: "#8b5cf6",
+  AM: "#10b981",
+  QA: "#f59e0b",
+  CEO: "#f97316",
+  PosVenda: "#64748b",
 };
 
 const RAW: Record<Area, Record<string, string>> = {
@@ -84,13 +87,19 @@ for (const area of Object.keys(RAW) as Area[]) {
   }
 }
 
-export function lookupMember(username: string | null | undefined): { name: string; area: Area | null } {
+export function lookupMember(username: string | null | undefined): {
+  name: string;
+  area: Area | null;
+} {
   if (!username) return { name: "Desconhecido", area: null };
   const key = username.toLowerCase().trim();
   const hit = USER_INDEX[key];
   if (hit) return hit;
   // Fallback - prettify username
-  const pretty = key.replace(/[._-]+/g, " ").replace(/\d+/g, "").trim();
+  const pretty = key
+    .replace(/[._-]+/g, " ")
+    .replace(/\d+/g, "")
+    .trim();
   return { name: pretty ? pretty.replace(/\b\w/g, (c) => c.toUpperCase()) : username, area: null };
 }
 
@@ -99,6 +108,30 @@ export function isResolutive(area: Area | null | undefined): boolean {
 }
 
 export const ALL_AREAS: Area[] = ["SuporteN2", "Chatbot", "AM", "QA", "CEO", "PosVenda"];
+
+/** Pessoas do N2 no PDI da coordenação, com o nome da tag no Discord. */
+export const N2_PEOPLE: { name: string; tag: string }[] = [
+  { name: "Mayanna", tag: "Mayanna" },
+  { name: "Gabriel Augusto", tag: "G. Augusto" },
+];
+
+/** Quem pode se identificar no painel ("quem é você?") e a tag de pessoa de cada um no Discord. */
+export const PANEL_PEOPLE: { name: string; area: string; tag: string | null }[] = [
+  { name: "Mayanna", area: "Suporte N2", tag: "Mayanna" },
+  { name: "Gabriel Augusto", area: "Suporte N2", tag: "G. Augusto" },
+  { name: "Leandro César", area: "Chatbot", tag: "Leandro" },
+  { name: "Mateus Brito", area: "Chatbot", tag: "M. Brito" },
+  { name: "Bruno Alves", area: "Chatbot", tag: "Bruno" },
+  { name: "Eduardo Marques", area: "Chatbot", tag: "Eduardo" },
+  { name: "Gabriela Bispo", area: "Chatbot", tag: "Gabi" },
+  { name: "Murilo", area: "Chatbot", tag: "Murilo" },
+  { name: "Matheus Bernardi", area: "Área de Membros", tag: "M. Bernardi" },
+  { name: "Robert Santos", area: "Área de Membros", tag: "Robert" },
+  { name: "Luan", area: "Área de Membros", tag: "Luan" },
+  { name: "Hudson Arruda", area: "Área de Membros", tag: "Hudson" },
+  { name: "Pós-Venda", area: "Pós-Venda", tag: null },
+  { name: "Coordenação", area: "Coordenação", tag: null },
+];
 
 // Resolver team string from analyses table -> Area enum (best effort)
 export function normalizeResolverTeam(team: string | null | undefined): Area | null {

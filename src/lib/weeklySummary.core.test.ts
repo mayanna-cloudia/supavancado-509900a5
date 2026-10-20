@@ -54,7 +54,10 @@ describe("buildPrompt", () => {
 
 describe("formatPeriodLabel", () => {
   it("formata dia/mês", () => {
-    const label = formatPeriodLabel(new Date("2026-08-10T12:00:00Z"), new Date("2026-08-16T12:00:00Z"));
+    const label = formatPeriodLabel(
+      new Date("2026-08-10T12:00:00Z"),
+      new Date("2026-08-16T12:00:00Z"),
+    );
     expect(label).toBe("10/08 a 16/08");
   });
 });
@@ -105,7 +108,11 @@ describe("generateSummaryText", () => {
     const f = vi
       .fn()
       .mockResolvedValueOnce(reply("Parcial", "length"))
-      .mockResolvedValueOnce({ ok: false, status: 500, text: async () => "boom" } as unknown as Response);
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        text: async () => "boom",
+      } as unknown as Response);
     const res = await generateSummaryText(cases, "key", meta, f as unknown as typeof fetch);
     expect(res).toMatchObject({ ok: true, text: "Parcial", truncated: true });
   });

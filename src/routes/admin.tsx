@@ -1,689 +1,721 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { supabase, ANALYZE_FN_URL, SUPABASE_ANON, type Case, type Analysis } from "@/lib/supabase";
-import { isTestCase } from "@/lib/discord";
-import { Lock, ArrowLeft, Sparkles, Loader2, X, Settings, RefreshCw, ThumbsUp, ArrowRight, Radar, Archive, Clock, AlertTriangle, Trash2, Info } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { createFileRoute } from "@tanstack/react-router";
+import {
+  Activity,
+  CheckCircle2,
+  Copy,
+  ExternalLink,
+  KeyRound,
+  Loader2,
+  RefreshCw,
+  Sparkles,
+  Download,
+} from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { loadSyncRuns, pushSyncRun, clearSyncRuns, type SyncRun } from "@/lib/syncHistory";
-import { syncDiscordThreads } from "@/lib/syncDiscord.functions";
-import { WeeklySummaryCard } from "@/components/dashboard/WeeklySummaryCard";
-
-
-const ADMIN_PASSWORD = "May0401@";
-const STORAGE_KEY = "cloudia_admin_ok";
-const DELAY_MS = 1000;
+import { AppShell } from "@/components/shell/AppShell";
+import { clearSession, RequireAccess, sessionToken } from "@/components/shell/RequireAccess";
+import { Markdown } from "@/components/sa/Markdown";
+import { Empty, ErrorBox, Loading, Pill, PrioPill } from "@/components/sa/bits";
+import { downloadCsv, toCsv } from "@/lib/csv";
+import {
+  loadBotHealth,
+  loadFeedbacks,
+  loadOpenCaseIds,
+  loadUnanalyzedCaseIds,
+  loadValidationQueue,
+  loadWeeklySummaries,
+  useLoader,
+} from "@/lib/data";
+import { discordThreadUrl } from "@/lib/discord";
+import { analyzeCase, generateWeekly, saveFeedback } from "@/lib/actions.functions";
+import { brtWeekStart, fmtDay, fmtMinutes, fmtWhen, isoWeekKey } from "@/lib/sla";
+import type { CaseWithAnalysis } from "@/lib/supabase";
+import { useMounted, useWho } from "@/lib/prefs";
 
 export const Route = createFileRoute("/admin")({
-  component: AdminPage,
+  head: () => ({ meta: [{ title: "Admin · Suporte Avançado" }] }),
+  component: () => (
+    <AppShell>
+      <RequireAccess role="admin" title="Admin">
+        <Admin />
+      </RequireAccess>
+    </AppShell>
+  ),
 });
 
-// ─── LOGIN ────────────────────────────────────────────────────────────────
-function LoginScreen({ onLogin }: { onLogin: () => void }) {
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+type Tab = "validar" | "boletim" | "ferramentas" | "historico";
 
-  function handleSubmit() {
-    if (password !== ADMIN_PASSWORD) {
-      setError("Senha incorreta.");
+function Admin() {
+  const mounted = useMounted();
+  const [tab, setTab] = useState<Tab>("validar");
+  const queue = useLoader(loadValidationQueue, [], ["analyses"]);
+  const tabs: [Tab, string, number?][] = [
+    ["validar", "Validar análises", queue.data?.length],
+    ["boletim", "Boletim da semana"],
+    ["ferramentas", "Ferramentas"],
+    ["historico", "Histórico de validações"],
+  ];
+  if (!mounted) return <Loading />;
+  return (
+    <>
+      <div
+        role="tablist"
+        aria-label="Seções do admin"
+        className="-mt-2 flex overflow-x-auto border-b border-line"
+      >
+        {tabs.map(([key, label, n]) => {
+          const on = tab === key;
+          return (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={on}
+              onClick={() => setTab(key)}
+              className={[
+                "flex min-h-[52px] shrink-0 items-center gap-2 px-4",
+                on
+                  ? "font-bold text-brand-text shadow-[inset_0_-2px_0_var(--brand)]"
+                  : "font-medium text-muted-foreground",
+              ].join(" ")}
+            >
+              {label}
+              {n != null && n > 0 && (
+                <span className="min-w-[22px] rounded-full bg-[#3760ff] px-1.5 py-px text-[11px] font-bold text-white">
+                  {n}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+      {tab === "validar" && <Validate queue={queue} />}
+      {tab === "boletim" && <Weekly />}
+      {tab === "ferramentas" && <Tools onHistory={() => setTab("historico")} />}
+      {tab === "historico" && <History />}
+    </>
+  );
+}
+
+// ─── Validar análises ────────────────────────────────────────────────────────
+
+const REASONS = [
+  "Resolvedor errado",
+  "Resumo genérico demais",
+  "Categoria errada",
+  "Problema errado",
+  "Com quem está a bola errado",
+  "Outro",
+];
+
+function Validate({ queue }: { queue: ReturnType<typeof useLoader<CaseWithAnalysis[]>> }) {
+  const { person } = useWho();
+  const [done, setDone] = useState<Set<number>>(new Set());
+  const [selId, setSelId] = useState<number | null>(null);
+  const [comment, setComment] = useState("");
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const items = useMemo(
+    () => (queue.data ?? []).filter((c) => !done.has(c.id)),
+    [queue.data, done],
+  );
+  const cur = items.find((c) => c.id === selId) ?? items[0];
+
+  const submit = useCallback(
+    async (rating: "aprovado" | "corrigido") => {
+      if (!cur || busy) return;
+      if (rating === "corrigido" && !reason) {
+        toast.error("Escolha o motivo da correção.");
+        return;
+      }
+      setBusy(true);
+      const res = await saveFeedback({
+        data: {
+          token: sessionToken(),
+          caseId: cur.id,
+          rating,
+          reason: rating === "corrigido" ? reason : undefined,
+          comment,
+          reviewer: person?.name ?? "Admin",
+        },
+      });
+      setBusy(false);
+      if (!res.ok) {
+        toast.error(res.message);
+        return;
+      }
+      toast.success(rating === "aprovado" ? "Análise aprovada" : "Correção registrada");
+      setDone((d) => new Set(d).add(cur.id));
+      setSelId(null);
+      setComment("");
+      setReason("");
+    },
+    [cur, busy, reason, comment, person],
+  );
+
+  // Atalhos: A aprova, R corrige (fora de campos de texto)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement;
+      if (el.tagName === "TEXTAREA" || el.tagName === "INPUT" || el.tagName === "SELECT") return;
+      if (e.key === "a" || e.key === "A") submit("aprovado");
+      if (e.key === "r" || e.key === "R") document.getElementById("motivo")?.focus();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [submit]);
+
+  if (queue.loading && !queue.data) return <Loading />;
+  if (queue.error) return <ErrorBox message={queue.error} />;
+  if (!cur) return <Empty>Nenhuma análise esperando validação.</Empty>;
+  const a = cur.analyses!;
+
+  return (
+    <div className="flex flex-wrap items-start gap-4">
+      <section
+        aria-label="Fila de validação"
+        className="card min-w-0 flex-[1_1_300px] overflow-hidden"
+      >
+        <div className="border-b border-line px-4 py-3 text-[12.5px] text-muted-foreground">
+          {items.length} análises esperando validação
+        </div>
+        <div className="max-h-[640px] overflow-y-auto">
+          {items.slice(0, 100).map((c) => {
+            const on = c.id === cur.id;
+            return (
+              <button
+                key={c.id}
+                type="button"
+                aria-pressed={on}
+                onClick={() => setSelId(c.id)}
+                className={[
+                  "flex w-full flex-col gap-0.5 border-b border-line px-4 py-3 text-left text-foreground",
+                  on ? "bg-brand-soft shadow-[inset_3px_0_0_var(--brand)]" : "",
+                ].join(" ")}
+              >
+                <span className="font-medium">{c.thread_title}</span>
+                <span className="text-[12.5px] text-muted-foreground">
+                  IDCLINIC {c.idclinic ?? "?"} · {fmtWhen(c.last_activity_at)}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      <section
+        aria-labelledby="val-t"
+        className="card flex min-w-0 flex-[999_1_520px] flex-col gap-3.5 px-5 py-[18px]"
+      >
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h2 id="val-t" className="m-0 text-lg font-bold">
+              {cur.thread_title}
+            </h2>
+            <div className="text-[12.5px] text-muted-foreground">
+              IDCLINIC {cur.idclinic ?? "?"} · analisado {fmtWhen(a.analyzed_at)} ·{" "}
+              {a.model ?? "modelo antigo"}
+            </div>
+          </div>
+          <a
+            href={discordThreadUrl(cur)}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 text-[13px] font-medium"
+          >
+            Abrir no Discord <ExternalLink className="h-3.5 w-3.5" />
+          </a>
+        </div>
+        <div className="grid gap-2.5 [grid-template-columns:repeat(auto-fit,minmax(150px,1fr))]">
+          {[
+            ["Categoria", a.category],
+            ["Módulo", a.subcategory],
+            ["Problema", a.problem_label],
+            ["Resolvido por", a.resolver_name],
+            [
+              "Com quem está a bola",
+              a.waiting_for === "client"
+                ? "Clínica"
+                : a.waiting_for === "none"
+                  ? "Ninguém"
+                  : a.waiting_for
+                    ? "Time"
+                    : null,
+            ],
+            [
+              "1ª resposta",
+              a.first_response_minutes != null ? fmtMinutes(a.first_response_minutes) : null,
+            ],
+          ].map(([k, v]) => (
+            <div key={k} className="rounded-lg bg-hover px-3 py-2.5">
+              <div className="text-xs text-muted-foreground">{k}</div>
+              <div className="font-medium">{v || "—"}</div>
+            </div>
+          ))}
+        </div>
+        <div className="flex items-center gap-2">
+          <PrioPill p={cur.priority} long />{" "}
+          {cur.person_tags.map((t) => (
+            <span key={t} className="rounded-full bg-hover px-2 py-0.5 text-xs">
+              {t}
+            </span>
+          ))}
+        </div>
+        <div>
+          <div className="text-xs font-bold tracking-[0.06em] text-muted-foreground">PROBLEMA</div>
+          <div className="mt-1">{a.summary || "—"}</div>
+        </div>
+        <div>
+          <div className="text-xs font-bold tracking-[0.06em] text-muted-foreground">RESOLUÇÃO</div>
+          <div className="mt-1">{a.resolution || "Ainda não resolvido."}</div>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <div className="flex flex-[0_1_260px] flex-col gap-1.5">
+            <label htmlFor="motivo" className="text-[13px] text-muted-foreground">
+              Motivo (para corrigir)
+            </label>
+            <select
+              id="motivo"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              className="h-10 rounded-lg border border-border bg-card px-2.5 text-foreground"
+            >
+              <option value="">Escolha…</option>
+              {REASONS.map((r) => (
+                <option key={r}>{r}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-[1_1_300px] flex-col gap-1.5">
+            <label htmlFor="coment" className="text-[13px] text-muted-foreground">
+              Comentário (opcional, vira exemplo para melhorar a IA)
+            </label>
+            <textarea
+              id="coment"
+              rows={2}
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              placeholder="Ex.: quem resolveu foi o Chatbot, não o N2"
+              className="resize-y rounded-lg border border-border bg-card px-3 py-2.5 text-foreground"
+            />
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => submit("aprovado")}
+            className="flex h-[42px] items-center gap-2 rounded-lg bg-[#1e8a5a] px-[18px] font-medium text-white disabled:opacity-60"
+          >
+            Aprovar{" "}
+            <kbd className="rounded border border-current px-1.5 text-[11px] font-bold">A</kbd>
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => submit("corrigido")}
+            className="flex h-[42px] items-center gap-2 rounded-lg border border-red px-[18px] font-medium text-red disabled:opacity-60"
+          >
+            Corrigir{" "}
+            <kbd className="rounded border border-current px-1.5 text-[11px] font-bold">R</kbd>
+          </button>
+          {busy && <Loader2 className="h-5 w-5 animate-spin self-center" />}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+// ─── Boletim da semana ───────────────────────────────────────────────────────
+
+function Weekly() {
+  const summaries = useLoader(loadWeeklySummaries, []);
+  const weeks = useMemo(() => {
+    const thisMonday = brtWeekStart(new Date());
+    return Array.from({ length: 8 }, (_, i) => {
+      const start = new Date(thisMonday.getTime() - (i + 1) * 7 * 86_400_000);
+      const end = new Date(start.getTime() + 6 * 86_400_000);
+      return { start, key: isoWeekKey(start), label: `${fmtDay(start)} a ${fmtDay(end)}` };
+    });
+  }, []);
+  const [sel, setSel] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const week = weeks[sel];
+  const saved = summaries.data?.find((s) => s.week_key === week.key);
+
+  const generate = async () => {
+    setBusy(true);
+    const res = await generateWeekly({
+      data: { token: sessionToken(), weekStart: week.start.toISOString() },
+    });
+    setBusy(false);
+    if (!res.ok) {
+      toast.error(res.message);
       return;
     }
-    try {
-      sessionStorage.setItem(STORAGE_KEY, "1");
-    } catch {
-      /* ignore */
-    }
-    onLogin();
-  }
+    toast.success("Boletim gerado e salvo para o time");
+    summaries.reload();
+  };
+
+  const copy = async () => {
+    if (!saved) return;
+    await navigator.clipboard.writeText(saved.content.text);
+    toast.success("Boletim copiado. É só colar no Discord.");
+  };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
-        <div className="flex justify-center mb-6">
-          <div className="w-12 h-12 rounded-xl bg-[rgba(115,90,255,0.15)] flex items-center justify-center">
-            <Lock className="h-5 w-5" style={{ color: "#b8a8ff" }} />
-          </div>
-        </div>
-
-        <h1 className="text-lg font-medium text-foreground text-center mb-1">Configurações</h1>
-        <p className="text-xs text-muted-foreground text-center mb-6">Área restrita — administração</p>
-
-        <div className="space-y-3">
-          <input
-            type="password"
-            placeholder="Senha"
-            value={password}
-            autoFocus
-            onChange={(e) => {
-              setPassword(e.target.value);
-              setError("");
-            }}
-            onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-            className="w-full h-10 rounded-md border border-border bg-surface px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-[var(--brand-blue)]"
-          />
-
-          {error && <p className="text-xs text-destructive">{error}</p>}
-
-          <button
-            type="button"
-            onClick={handleSubmit}
-            className="w-full h-10 rounded-md bg-[#256EFF] text-white text-sm font-medium hover:bg-[#1f5dd9] transition-colors"
-          >
-            Entrar
-          </button>
-
-          <Link
-            to="/"
-            className="flex items-center justify-center gap-1 text-xs text-muted-foreground hover:text-foreground pt-2 transition-colors"
-          >
-            <ArrowLeft className="h-3 w-3" />
-            Voltar ao dashboard
-          </Link>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── CONFIG PANEL ─────────────────────────────────────────────────────────
-type OpenCase = Case & { hasAnalysis: boolean };
-
-function ReanalyzeOpenCard() {
-  const [loadingList, setLoadingList] = useState(true);
-  const [openCases, setOpenCases] = useState<OpenCase[]>([]);
-  const [includeAnalyzed, setIncludeAnalyzed] = useState(true);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [running, setRunning] = useState(false);
-  const [done, setDone] = useState(0);
-  const [total, setTotal] = useState(0);
-  const cancelRef = useRef(false);
-
-  async function loadOpen() {
-    setLoadingList(true);
-    const [{ data: casesData }, { data: analysesData }] = await Promise.all([
-      supabase.from("cases").select("*").eq("status", "aberto").limit(5000),
-      supabase.from("analyses").select("case_id, summary").limit(20000),
-    ]);
-    const analyzedSet = new Set<number>();
-    for (const a of (analysesData as Pick<Analysis, "case_id" | "summary">[]) || []) {
-      if (a.summary && a.summary.trim()) analyzedSet.add(a.case_id);
-    }
-    const filtered = ((casesData as Case[]) || [])
-      .filter((c) => !isTestCase({ thread_title: c.thread_title ?? null }))
-      .map((c) => ({ ...c, hasAnalysis: analyzedSet.has(c.id) }));
-    setOpenCases(filtered);
-    setLoadingList(false);
-  }
-
-  useEffect(() => {
-    loadOpen();
-  }, []);
-
-  const targetIds = useMemo(() => {
-    return openCases
-      .filter((c) => (includeAnalyzed ? true : !c.hasAnalysis))
-      .map((c) => c.id);
-  }, [openCases, includeAnalyzed]);
-
-  async function start() {
-    setConfirmOpen(false);
-    cancelRef.current = false;
-    const ids = [...targetIds];
-    setTotal(ids.length);
-    setDone(0);
-    setRunning(true);
-    let success = 0;
-    let failed = 0;
-
-    for (let i = 0; i < ids.length; i++) {
-      if (cancelRef.current) break;
-      try {
-        const res = await fetch(ANALYZE_FN_URL, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${SUPABASE_ANON}`,
-          },
-          body: JSON.stringify({ case_id: ids[i], force: true }),
-        });
-        if (res.ok) success++;
-        else failed++;
-      } catch {
-        failed++;
-      }
-      setDone(i + 1);
-      if (i < ids.length - 1 && !cancelRef.current) {
-        await new Promise((r) => setTimeout(r, DELAY_MS));
-      }
-    }
-
-    setRunning(false);
-    if (cancelRef.current) {
-      toast(`Reanálise cancelada — ${success} concluídas, ${failed} falhas`, { duration: 4000 });
-    } else {
-      toast.success(`${success} caso(s) reanalisados${failed ? ` · ${failed} falha(s)` : ""}`, {
-        duration: 4000,
-      });
-    }
-    loadOpen();
-  }
-
-  const withAnalysis = openCases.filter((c) => c.hasAnalysis).length;
-  const withoutAnalysis = openCases.length - withAnalysis;
-  const estMin = Math.ceil((targetIds.length * (DELAY_MS + 2000)) / 60000);
-
-  return (
-    <div className="rounded-lg border border-border bg-card p-5">
-      <div className="flex items-start gap-3 mb-4">
-        <div className="w-9 h-9 rounded-md bg-[rgba(37,110,255,0.15)] flex items-center justify-center shrink-0">
-          <Sparkles className="h-4 w-4 text-[#5b9eff]" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <h2 className="text-sm font-medium text-foreground">Reanalisar casos em aberto</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Dispara a análise da IA para todos os casos com <code className="text-foreground/80">status = aberto</code>.
-            Usa <code className="text-foreground/80">force: true</code> para sobrescrever análises antigas.
-          </p>
-        </div>
-      </div>
-
-      {loadingList ? (
-        <p className="text-xs text-muted-foreground">Carregando casos abertos…</p>
-      ) : (
-        <>
-          <div className="grid grid-cols-3 gap-2 mb-4">
-            <Stat label="Em aberto" value={openCases.length} />
-            <Stat label="Já analisados" value={withAnalysis} />
-            <Stat label="Sem análise" value={withoutAnalysis} accent />
-          </div>
-
-          <label className="flex items-center gap-2 mb-4 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={includeAnalyzed}
-              onChange={(e) => setIncludeAnalyzed(e.target.checked)}
-              className="cursor-pointer accent-[#256EFF]"
-            />
-            <span className="text-xs text-foreground/90">
-              Incluir casos que já possuem análise (reanalisar tudo)
-            </span>
-          </label>
-
-          <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-wrap items-start gap-4">
+      <nav aria-label="Semanas" className="card min-w-0 flex-[1_1_220px] overflow-hidden">
+        <div className="border-b border-line px-4 py-3 font-bold">Semanas</div>
+        {weeks.map((w, i) => {
+          const has = summaries.data?.some((s) => s.week_key === w.key);
+          const on = i === sel;
+          return (
             <button
+              key={w.key}
               type="button"
-              disabled={running || targetIds.length === 0}
-              onClick={() => setConfirmOpen(true)}
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-md text-xs font-medium border transition-all",
-                running || targetIds.length === 0
-                  ? "bg-[#256EFF]/60 border-transparent text-white cursor-not-allowed"
-                  : "bg-[#256EFF] border-transparent text-white hover:bg-[#1f5dd9]"
-              )}
-              style={{ padding: "8px 14px" }}
+              aria-pressed={on}
+              onClick={() => setSel(i)}
+              className={[
+                "flex w-full flex-col gap-0.5 border-b border-line px-4 py-3 text-left text-foreground",
+                on ? "bg-brand-soft shadow-[inset_3px_0_0_var(--brand)]" : "",
+              ].join(" ")}
             >
-              {running ? (
-                <>
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  Analisando…
-                </>
-              ) : (
-                <>
-                  <Sparkles className="h-3.5 w-3.5" />
-                  Reanalisar {targetIds.length} caso(s)
-                </>
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={loadOpen}
-              disabled={running}
-              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-3 py-2 text-xs text-foreground hover:bg-surface/70 transition-colors disabled:opacity-50"
-            >
-              <RefreshCw className="h-3.5 w-3.5" />
-              Atualizar lista
-            </button>
-
-            {targetIds.length > 0 && !running && (
-              <span className="text-[11px] text-muted-foreground">
-                ~{estMin} minuto(s) estimado(s)
+              <span className="font-medium">{w.label}</span>
+              <span className="text-xs text-muted-foreground">
+                {has ? "boletim salvo" : "ainda não gerado"}
               </span>
+            </button>
+          );
+        })}
+      </nav>
+
+      <article className="card min-w-0 flex-[999_1_560px] overflow-hidden">
+        <div className="bg-grad-brand flex flex-wrap items-center justify-between gap-3 px-[22px] py-[18px] text-white">
+          <div>
+            <div className="text-[12.5px] opacity-90">Boletim do Suporte Avançado</div>
+            <h2 className="m-0 mt-0.5 text-xl font-bold">Semana de {week.label}</h2>
+            {saved && (
+              <div className="text-[12.5px] opacity-90">
+                {saved.content.total} casos resolvidos · gerado {fmtWhen(saved.generated_at)}
+              </div>
             )}
           </div>
-
-          {/* Progress bar */}
-          {running && (
-            <div className="mt-4 rounded-md border border-border bg-surface p-3">
-              <div className="flex items-center justify-between mb-2 gap-3">
-                <span className="text-xs font-medium text-foreground tabular-nums">
-                  Analisando {done}/{total}…
-                </span>
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] text-muted-foreground tabular-nums">
-                    {total ? Math.round((done / total) * 100) : 0}%
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => (cancelRef.current = true)}
-                    className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2 py-0.5 text-[11px] text-foreground hover:border-[var(--brand-red)]/60 hover:text-[var(--brand-red)] transition-colors"
-                  >
-                    <X className="h-3 w-3" />
-                    Cancelar
-                  </button>
-                </div>
-              </div>
-              <div className="h-1 rounded-full bg-background overflow-hidden">
-                <div
-                  className="h-full rounded-full transition-all"
-                  style={{
-                    width: `${total ? (done / total) * 100 : 0}%`,
-                    background: "var(--brand-blue)",
-                  }}
-                />
-              </div>
-            </div>
-          )}
-        </>
-      )}
-
-      {/* Confirm modal */}
-      {confirmOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ background: "rgba(0,0,0,0.55)" }}
-          onClick={() => setConfirmOpen(false)}
-        >
-          <div
-            className="w-full max-w-md rounded-lg border border-border bg-card p-5"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-sm font-medium text-foreground mb-1">
-              Reanalisar {targetIds.length} caso(s)?
-            </h3>
-            <p className="text-xs text-muted-foreground mb-4">
-              A IA será chamada 1x por caso, com 1s de intervalo. Análises anteriores serão
-              sobrescritas (<code>force: true</code>). Você pode cancelar a qualquer momento.
-              Tempo estimado: <span className="text-foreground tabular-nums">~{estMin} min</span>.
-            </p>
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setConfirmOpen(false)}
-                className="h-8 px-3 rounded-md border border-border bg-surface text-xs text-foreground hover:bg-surface/70"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={start}
-                className="h-8 px-4 rounded-md bg-[#256EFF] text-white text-xs font-medium hover:bg-[#1f5dd9]"
-              >
-                Iniciar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function Stat({ label, value, accent }: { label: string; value: number; accent?: boolean }) {
-  return (
-    <div className="rounded-md border border-border bg-surface px-3 py-2">
-      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{label}</p>
-      <p
-        className={cn("text-lg font-medium tabular-nums", accent ? "text-[#5b9eff]" : "text-foreground")}
-      >
-        {value}
-      </p>
-    </div>
-  );
-}
-
-// ─── SYNC DISCORD CARD ────────────────────────────────────────────────────
-
-type SyncStatus = { started_at: string; threads_checked: number; cases_archived: number; errors: number };
-
-function relativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const s = Math.floor(diff / 1000);
-  if (s < 60) return `há ${s}s`;
-  const m = Math.floor(s / 60);
-  if (m < 60) return `há ${m} min`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `há ${h}h`;
-  const d = Math.floor(h / 24);
-  return `há ${d}d`;
-}
-
-function formatFull(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
-}
-
-function SyncDiscordCard() {
-  const [runs, setRuns] = useState<SyncRun[]>([]);
-  const [running, setRunning] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
-
-  useEffect(() => { setRuns(loadSyncRuns()); }, []);
-
-  const last = runs[0] ?? null;
-  const totals = useMemo(() => {
-    return runs.reduce(
-      (acc, r) => ({
-        threads: acc.threads + r.threads_checked,
-        archived: acc.archived + r.cases_archived,
-      }),
-      { threads: 0, archived: 0 }
-    );
-  }, [runs]);
-
-  async function runSync() {
-    setRunning(true);
-    setNotice(null);
-    const started_at = new Date().toISOString();
-    try {
-      const data = await syncDiscordThreads();
-      if (!data.ok && data.error === "not_configured") {
-        // Não conte como falha — apenas mostre aviso de configuração.
-        setNotice(data.message ?? "Sync ainda não configurado.");
-        toast(data.message ?? "Sync ainda não configurado.", { duration: 5000 });
-      } else if (!data.ok) {
-        const run = pushSyncRun({
-          started_at,
-          finished_at: new Date().toISOString(),
-          threads_checked: data.threads_checked,
-          cases_archived: data.cases_archived,
-          errors: Math.max(1, data.errors),
-          status: "failed",
-        });
-        setRuns((prev) => [run, ...prev].slice(0, 20));
-        toast.error(data.message ?? "Falha ao sincronizar");
-      } else {
-        const run = pushSyncRun({
-          started_at,
-          finished_at: new Date().toISOString(),
-          threads_checked: data.threads_checked,
-          cases_archived: data.cases_archived,
-          errors: data.errors,
-          status: data.errors > 0 ? "partial" : "success",
-        });
-        setRuns((prev) => [run, ...prev].slice(0, 20));
-        toast.success(`Sync concluído — ${run.threads_checked} threads · ${run.cases_archived} arquivados`);
-      }
-    } catch (err) {
-      const run = pushSyncRun({
-        started_at,
-        finished_at: new Date().toISOString(),
-        threads_checked: 0,
-        cases_archived: 0,
-        errors: 1,
-        status: "failed",
-      });
-      setRuns((prev) => [run, ...prev].slice(0, 20));
-      toast.error(err instanceof Error ? err.message : "Falha ao sincronizar");
-    } finally {
-      setRunning(false);
-    }
-  }
-
-  function handleClear() {
-    if (!confirm("Limpar histórico de sincronizações?")) return;
-    clearSyncRuns();
-    setRuns([]);
-  }
-
-  return (
-    <div className="rounded-lg border border-border bg-card p-5">
-      <div className="flex items-start gap-3 mb-4">
-        <div className="w-9 h-9 rounded-md bg-[rgba(245,158,11,0.15)] flex items-center justify-center shrink-0">
-          <Radar className="h-4 w-4 text-[#f59e0b]" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <h2 className="text-sm font-medium text-foreground">Sincronizar com o Discord</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Verifica cada thread registrada e arquiva os casos cujo tópico foi apagado no Discord.
-            Isso remove do dashboard casos que não existem mais.
-          </p>
-        </div>
-      </div>
-
-      {notice && (
-        <div className="mb-4 flex items-start gap-2 rounded-md border border-[#f59e0b]/30 bg-[#f59e0b]/10 px-3 py-2 text-xs text-[#f59e0b]">
-          <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-          <span className="leading-relaxed">{notice}</span>
-        </div>
-      )}
-
-      {/* Últimos números */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
-        <SyncStat
-          icon={<Clock className="h-3 w-3" />}
-          label="Último sync"
-          value={last ? relativeTime(last.finished_at) : "—"}
-          hint={last ? formatFull(last.finished_at) : "Nunca executado"}
-        />
-        <SyncStat
-          icon={<Radar className="h-3 w-3" />}
-          label="Threads verificadas"
-          value={last ? String(last.threads_checked) : "—"}
-          hint={runs.length ? `${totals.threads} no total` : undefined}
-        />
-        <SyncStat
-          icon={<Archive className="h-3 w-3" />}
-          label="Casos arquivados"
-          value={last ? String(last.cases_archived) : "—"}
-          hint={runs.length ? `${totals.archived} no total` : undefined}
-          accent
-        />
-        <SyncStat
-          icon={<AlertTriangle className="h-3 w-3" />}
-          label="Erros"
-          value={last ? String(last.errors) : "—"}
-          hint={last?.status === "failed" ? "Última execução falhou" : undefined}
-          danger={!!last && last.errors > 0}
-        />
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2 mb-4">
-        <button
-          type="button"
-          onClick={runSync}
-          disabled={running}
-          className={cn(
-            "inline-flex items-center gap-1.5 rounded-md text-xs font-medium transition-all px-3.5 py-2",
-            running
-              ? "bg-[#f59e0b]/60 text-white cursor-not-allowed"
-              : "bg-[#f59e0b] text-white hover:bg-[#d98906]"
-          )}
-        >
-          {running ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Sincronizando…</> : <><Radar className="h-3.5 w-3.5" /> Sincronizar agora</>}
-        </button>
-        {runs.length > 0 && (
-          <button
-            type="button"
-            onClick={handleClear}
-            disabled={running}
-            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-3 py-2 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            Limpar histórico
-          </button>
-        )}
-      </div>
-
-      {/* Histórico */}
-      {runs.length > 0 && (
-        <div className="rounded-md border border-border bg-surface overflow-hidden">
-          <div className="grid grid-cols-[1fr_auto_auto_auto] gap-3 px-3 py-2 border-b border-border text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
-            <span>Quando</span>
-            <span className="text-right">Threads</span>
-            <span className="text-right">Arquivados</span>
-            <span className="text-right">Status</span>
-          </div>
-          <div className="max-h-56 overflow-y-auto">
-            {runs.map((r) => (
-              <div
-                key={r.id}
-                className="grid grid-cols-[1fr_auto_auto_auto] gap-3 px-3 py-2 border-b border-border/50 last:border-0 text-xs items-center"
-              >
-                <div className="min-w-0">
-                  <div className="text-foreground truncate">{formatFull(r.finished_at)}</div>
-                  <div className="text-[10px] text-muted-foreground">{relativeTime(r.finished_at)}</div>
-                </div>
-                <span className="text-right tabular-nums text-foreground/90">{r.threads_checked}</span>
-                <span className={cn("text-right tabular-nums", r.cases_archived > 0 ? "text-[#5b9eff] font-medium" : "text-foreground/90")}>
-                  {r.cases_archived}
-                </span>
-                <span
-                  className={cn(
-                    "text-right text-[10px] font-semibold uppercase tracking-wider",
-                    r.status === "success" && "text-emerald-400",
-                    r.status === "partial" && "text-amber-400",
-                    r.status === "failed" && "text-red-400",
-                    r.status === "cancelled" && "text-muted-foreground"
-                  )}
-                >
-                  {r.status === "success" ? "ok" : r.status === "partial" ? "parcial" : r.status === "failed" ? "falha" : "cancel."}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function SyncStat({
-  icon, label, value, hint, accent, danger,
-}: { icon: React.ReactNode; label: string; value: string; hint?: string; accent?: boolean; danger?: boolean }) {
-  return (
-    <div className="rounded-md border border-border bg-surface px-3 py-2">
-      <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground">
-        {icon}
-        <span>{label}</span>
-      </div>
-      <p
-        className={cn(
-          "text-base font-medium tabular-nums mt-0.5",
-          danger ? "text-red-400" : accent ? "text-[#5b9eff]" : "text-foreground"
-        )}
-      >
-        {value}
-      </p>
-      {hint && <p className="text-[10px] text-muted-foreground truncate">{hint}</p>}
-    </div>
-  );
-}
-
-// ─── FEEDBACKS CARD ───────────────────────────────────────────────────────
-function FeedbacksCard() {
-  return (
-    <div className="rounded-lg border border-border bg-card p-5">
-      <div className="flex items-start gap-3 mb-4">
-        <div className="w-9 h-9 rounded-md bg-[rgba(16,185,129,0.15)] flex items-center justify-center shrink-0">
-          <ThumbsUp className="h-4 w-4 text-[#10b981]" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <h2 className="text-sm font-medium text-foreground">Validação de análises da IA</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Página dedicada para revisar caso a caso as análises geradas pela IA. Você aprova
-            com <span className="text-foreground/90">👍</span> ou reporta com <span className="text-foreground/90">👎</span> indicando
-            o que está errado (resolvedor, categoria, resumo, prioridade, status). Cada feedback
-            fica salvo por revisor e alimenta o cálculo de qualidade da IA ao longo do tempo.
-          </p>
-          <ul className="text-[11px] text-muted-foreground mt-2 space-y-0.5 list-disc pl-4">
-            <li>Filtros por pendentes, aprovados e reportados</li>
-            <li>Toggle: clicar de novo no mesmo botão remove o feedback</li>
-            <li>Acesso restrito — hoje somente Mayanna</li>
-          </ul>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        <Link
-          to="/feedbacks"
-          className="inline-flex items-center gap-1.5 rounded-md bg-[#10b981] px-3.5 py-2 text-xs font-medium text-white hover:bg-[#0ea371] transition-colors"
-        >
-          Abrir feedbacks
-          <ArrowRight className="h-3.5 w-3.5" />
-        </Link>
-        <Link
-          to="/admin-feedbacks"
-          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-3.5 py-2 text-xs font-medium text-foreground hover:bg-surface/70 transition-colors"
-        >
-          Ver log de feedbacks
-          <ArrowRight className="h-3.5 w-3.5" />
-        </Link>
-      </div>
-    </div>
-  );
-}
-
-// ─── PAGE ─────────────────────────────────────────────────────────────────
-function AdminPage() {
-  const [authed, setAuthed] = useState(false);
-
-  useEffect(() => {
-    try {
-      if (sessionStorage.getItem(STORAGE_KEY) === "1") setAuthed(true);
-    } catch {
-      /* ignore */
-    }
-  }, []);
-
-  if (!authed) return <LoginScreen onLogin={() => setAuthed(true)} />;
-
-  function logout() {
-    try {
-      sessionStorage.removeItem(STORAGE_KEY);
-    } catch {
-      /* ignore */
-    }
-    setAuthed(false);
-  }
-
-  return (
-    <div className="min-h-screen bg-background">
-      <div className="max-w-3xl mx-auto px-4 py-6">
-        <div className="flex items-start justify-between mb-6 flex-wrap gap-3">
-          <div>
-            <Link
-              to="/"
-              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mb-3 transition-colors"
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={generate}
+              disabled={busy}
+              className="flex h-[38px] items-center gap-2 rounded-lg border border-white/60 px-3.5 text-white disabled:opacity-60"
             >
-              <ArrowLeft className="h-3 w-3" />
-              Voltar ao dashboard
-            </Link>
-            <div className="flex items-center gap-2">
-              <Settings className="h-4 w-4 text-muted-foreground" />
-              <h1 className="text-base font-medium text-foreground">Configurações</h1>
-            </div>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Ferramentas administrativas do dashboard
-            </p>
+              {busy ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Sparkles className="h-4 w-4" />
+              )}
+              {saved ? "Gerar de novo" : "Gerar boletim"}
+            </button>
+            {saved && (
+              <button
+                type="button"
+                onClick={copy}
+                className="flex h-[38px] items-center gap-2 rounded-lg bg-white px-3.5 font-bold text-[#2c4edc]"
+              >
+                <Copy className="h-4 w-4" /> Copiar para o Discord
+              </button>
+            )}
           </div>
+        </div>
+        <div className="px-[22px] py-5">
+          {summaries.loading && !summaries.data ? (
+            <Loading />
+          ) : saved ? (
+            <Markdown text={saved.content.text} />
+          ) : (
+            <Empty>
+              {busy
+                ? "A IA está escrevendo o boletim, leva cerca de um minuto…"
+                : "Ainda não tem boletim desta semana. Clique em “Gerar boletim”: a IA lê os casos resolvidos e escreve panorama, principais problemas, pontos de atenção e glossário."}
+            </Empty>
+          )}
+        </div>
+      </article>
+    </div>
+  );
+}
+
+// ─── Ferramentas ─────────────────────────────────────────────────────────────
+
+function useBatch() {
+  const [state, setState] = useState<{
+    running: boolean;
+    done: number;
+    total: number;
+    errors: number;
+    label: string;
+  } | null>(null);
+  const cancel = useRef(false);
+  const run = async (label: string, ids: number[]) => {
+    if (!ids.length) {
+      toast.info("Nada para analisar.");
+      return;
+    }
+    cancel.current = false;
+    let errors = 0;
+    setState({ running: true, done: 0, total: ids.length, errors: 0, label });
+    for (let i = 0; i < ids.length; i++) {
+      if (cancel.current) break;
+      const res = await analyzeCase({ data: { token: sessionToken(), caseId: ids[i] } });
+      if (!res.ok) {
+        errors++;
+        if (res.message.includes("Sessão")) {
+          toast.error(res.message);
+          break;
+        }
+      }
+      setState({ running: true, done: i + 1, total: ids.length, errors, label });
+      // 1 segundo entre chamadas, para não sobrecarregar a IA
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+    setState((s) => (s ? { ...s, running: false } : s));
+    toast.success(`${label}: concluído${errors ? ` com ${errors} erro(s)` : ""}.`);
+  };
+  return { state, run, cancel: () => (cancel.current = true) };
+}
+
+function ToolCard({
+  icon: Icon,
+  title,
+  desc,
+  status,
+  children,
+}: {
+  icon: typeof Activity;
+  title: string;
+  desc: string;
+  status?: React.ReactNode;
+  children?: React.ReactNode;
+}) {
+  return (
+    <section className="card flex flex-col gap-2.5 px-5 py-[18px]">
+      <div className="flex items-center gap-3">
+        <div className="bg-grad-brand flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] text-white">
+          <Icon className="h-5 w-5" strokeWidth={1.8} />
+        </div>
+        <h2 className="m-0 text-base font-bold">{title}</h2>
+      </div>
+      <div>{desc}</div>
+      {status && <div className="text-[12.5px] text-muted-foreground">{status}</div>}
+      {children}
+    </section>
+  );
+}
+
+const btnPrimary =
+  "flex h-10 items-center gap-2 self-start rounded-lg bg-[#3760ff] px-3.5 font-medium text-white disabled:opacity-60";
+const btnSecondary =
+  "flex h-10 items-center gap-2 self-start rounded-lg border border-border bg-card px-3.5 font-medium text-foreground disabled:opacity-60";
+
+function Tools({ onHistory }: { onHistory: () => void }) {
+  const pending = useLoader(() => loadUnanalyzedCaseIds(), [], ["analyses"]);
+  const open = useLoader(loadOpenCaseIds, [], ["cases"]);
+  const health = useLoader(loadBotHealth, [], ["messages"]);
+  const feedbacks = useLoader(loadFeedbacks, []);
+  const batch = useBatch();
+  const s = batch.state;
+
+  const reasons = new Map<string, number>();
+  for (const f of feedbacks.data ?? [])
+    if (f.rating === "corrigido" && f.reason)
+      reasons.set(f.reason, (reasons.get(f.reason) ?? 0) + 1);
+  const topReasons = [...reasons.entries()].sort((a, b) => b[1] - a[1]).slice(0, 2);
+
+  return (
+    <>
+      {s && (
+        <div className="card flex flex-col gap-2 px-5 py-4">
+          <div className="flex items-center justify-between gap-3">
+            <b>
+              {s.label}: {s.done} de {s.total}
+              {s.errors ? ` · ${s.errors} erro(s)` : ""}
+            </b>
+            {s.running && (
+              <button type="button" onClick={batch.cancel} className={btnSecondary}>
+                Parar
+              </button>
+            )}
+          </div>
+          <div className="h-2 overflow-hidden rounded-full bg-bar">
+            <div
+              className="h-full rounded-full"
+              style={{ width: `${(s.done / s.total) * 100}%`, background: "var(--grad-brand-bar)" }}
+            />
+          </div>
+        </div>
+      )}
+      <div className="grid gap-3.5 [grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr))]">
+        <ToolCard
+          icon={Sparkles}
+          title="Analisar pendentes"
+          desc="Roda a IA nos casos que ainda não têm análise, um por vez, com 1 segundo de pausa entre eles."
+          status={pending.data ? `${pending.data.length} casos sem análise agora` : "contando…"}
+        >
           <button
             type="button"
-            onClick={logout}
-            className="text-xs text-muted-foreground hover:text-foreground underline transition-colors"
+            className={btnPrimary}
+            disabled={!pending.data?.length || s?.running}
+            onClick={() => batch.run("Analisar pendentes", pending.data ?? []).then(pending.reload)}
           >
-            Sair
+            Analisar {pending.data?.length ?? ""} casos
           </button>
-        </div>
-
-        <div className="flex flex-col gap-4">
-          <WeeklySummaryCard />
-          <ReanalyzeOpenCard />
-          <SyncDiscordCard />
-          <FeedbacksCard />
-        </div>
-
+        </ToolCard>
+        <ToolCard
+          icon={RefreshCw}
+          title="Reanalisar casos em aberto"
+          desc="Refaz a análise de todos os casos abertos. Use depois de mudar o prompt ou o modelo da IA."
+          status={open.data ? `${open.data.length} casos abertos` : "contando…"}
+        >
+          <button
+            type="button"
+            className={btnSecondary}
+            disabled={!open.data?.length || s?.running}
+            onClick={() => batch.run("Reanalisar abertos", open.data ?? [])}
+          >
+            Reanalisar {open.data?.length ?? ""} casos
+          </button>
+        </ToolCard>
+        <ToolCard
+          icon={Activity}
+          title="Saúde do bot"
+          desc="Mostra se o bot do Discord está gravando. Tópico apagado no Discord sai dos números na hora."
+          status={
+            health.data
+              ? `${health.data.threads} tópicos no banco · última mensagem ${health.data.lastMessageAt ? fmtWhen(health.data.lastMessageAt) : "—"} · último tópico atualizado ${health.data.lastSyncAt ? fmtWhen(health.data.lastSyncAt) : "—"}`
+              : "verificando…"
+          }
+        />
+        <ToolCard
+          icon={Download}
+          title="Reimportar histórico"
+          desc="Para ler de novo todos os tópicos do Discord desde 1º de janeiro, reinicie o bot na Discloud. Ele confere cada tópico e só grava o que faltar."
+          status="Use se o bot ficou muito tempo fora do ar."
+        />
+        <ToolCard
+          icon={CheckCircle2}
+          title="Histórico de validações"
+          desc="Todas as análises aprovadas e corrigidas, com os motivos. Os motivos mais comuns mostram onde ajustar o prompt."
+          status={
+            topReasons.length
+              ? `mais comum: ${topReasons.map(([r, n]) => `${r.toLowerCase()} (${n})`).join(" · ")}`
+              : "nenhuma correção ainda"
+          }
+        >
+          <button type="button" className={btnSecondary} onClick={onHistory}>
+            Abrir histórico
+          </button>
+        </ToolCard>
+        <ToolCard
+          icon={KeyRound}
+          title="Acesso e senhas"
+          desc="As senhas da área Admin e da Coordenação ficam nos secrets do projeto (ADMIN_PASSWORD e COORD_PASSWORD). Trocou lá, vale no próximo acesso. As telas do time continuam abertas."
+        >
+          <button
+            type="button"
+            className={btnSecondary}
+            onClick={() => {
+              clearSession();
+              location.reload();
+            }}
+          >
+            Sair desta sessão
+          </button>
+        </ToolCard>
       </div>
-    </div>
+    </>
+  );
+}
+
+// ─── Histórico de validações ────────────────────────────────────────────────
+
+function History() {
+  const data = useLoader(loadFeedbacks, []);
+  const [filter, setFilter] = useState<"" | "aprovado" | "corrigido">("");
+  if (data.loading && !data.data) return <Loading />;
+  if (data.error) return <ErrorBox message={data.error} />;
+  const rows = (data.data ?? []).filter((f) => !filter || f.rating === filter);
+
+  const exportCsv = () =>
+    downloadCsv(
+      "validacoes-suporte-avancado.csv",
+      toCsv(
+        ["Data", "Caso", "Título", "IDCLINIC", "Avaliação", "Motivo", "Comentário", "Quem validou"],
+        rows.map((f) => [
+          fmtWhen(f.created_at),
+          f.case_id,
+          f.cases?.thread_title,
+          f.cases?.idclinic,
+          f.rating,
+          f.reason,
+          f.comment,
+          f.reviewer,
+        ]),
+      ),
+    );
+
+  return (
+    <section className="card overflow-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-[18px] py-3">
+        <div className="flex gap-1">
+          {(["", "aprovado", "corrigido"] as const).map((f) => (
+            <button
+              key={f || "todos"}
+              type="button"
+              aria-pressed={filter === f}
+              onClick={() => setFilter(f)}
+              className={[
+                "h-9 rounded-lg border px-3 text-[13px]",
+                filter === f
+                  ? "border-brand bg-brand-soft font-bold text-brand-text"
+                  : "border-border bg-card",
+              ].join(" ")}
+            >
+              {f === "" ? "Todas" : f === "aprovado" ? "Aprovadas" : "Corrigidas"}
+            </button>
+          ))}
+        </div>
+        <button type="button" onClick={exportCsv} className={btnSecondary}>
+          Exportar CSV
+        </button>
+      </div>
+      {rows.length === 0 && <Empty>Nenhuma validação registrada ainda.</Empty>}
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[720px] border-collapse">
+          <tbody>
+            {rows.map((f) => (
+              <tr key={f.id} className="border-b border-line align-top">
+                <td className="whitespace-nowrap px-[18px] py-3 text-[13px] text-muted-foreground">
+                  {fmtWhen(f.created_at)}
+                </td>
+                <td className="px-2 py-3">
+                  <div className="font-medium">{f.cases?.thread_title ?? `Caso ${f.case_id}`}</div>
+                  {(f.reason || f.comment) && (
+                    <div className="text-[13px] text-muted-foreground">
+                      {[f.reason, f.comment].filter(Boolean).join(" — ")}
+                    </div>
+                  )}
+                </td>
+                <td className="px-2 py-3">
+                  <Pill tone={f.rating === "aprovado" ? "green" : "red"}>
+                    {f.rating === "aprovado" ? "Aprovada" : "Corrigida"}
+                  </Pill>
+                </td>
+                <td className="px-[18px] py-3 text-[13px] text-muted-foreground">{f.reviewer}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }

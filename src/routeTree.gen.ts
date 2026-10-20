@@ -12,7 +12,10 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AdminFeedbacksRouteImport } from './routes/admin-feedbacks'
+import { Route as CasosRouteImport } from './routes/casos'
+import { Route as CoordenacaoRouteImport } from './routes/coordenacao'
 import { Route as FeedbacksRouteImport } from './routes/feedbacks'
+import { Route as ProblemasRouteImport } from './routes/problemas'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -29,9 +32,24 @@ const AdminFeedbacksRoute = AdminFeedbacksRouteImport.update({
   path: '/admin-feedbacks',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CasosRoute = CasosRouteImport.update({
+  id: '/casos',
+  path: '/casos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CoordenacaoRoute = CoordenacaoRouteImport.update({
+  id: '/coordenacao',
+  path: '/coordenacao',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const FeedbacksRoute = FeedbacksRouteImport.update({
   id: '/feedbacks',
   path: '/feedbacks',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProblemasRoute = ProblemasRouteImport.update({
+  id: '/problemas',
+  path: '/problemas',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -39,34 +57,68 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/admin-feedbacks': typeof AdminFeedbacksRoute
+  '/casos': typeof CasosRoute
+  '/coordenacao': typeof CoordenacaoRoute
   '/feedbacks': typeof FeedbacksRoute
+  '/problemas': typeof ProblemasRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/admin-feedbacks': typeof AdminFeedbacksRoute
+  '/casos': typeof CasosRoute
+  '/coordenacao': typeof CoordenacaoRoute
   '/feedbacks': typeof FeedbacksRoute
+  '/problemas': typeof ProblemasRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/admin-feedbacks': typeof AdminFeedbacksRoute
+  '/casos': typeof CasosRoute
+  '/coordenacao': typeof CoordenacaoRoute
   '/feedbacks': typeof FeedbacksRoute
+  '/problemas': typeof ProblemasRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/admin' | '/admin-feedbacks' | '/feedbacks'
+  fullPaths:
+    | '/'
+    | '/admin'
+    | '/admin-feedbacks'
+    | '/casos'
+    | '/coordenacao'
+    | '/feedbacks'
+    | '/problemas'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin' | '/admin-feedbacks' | '/feedbacks'
-  id: '__root__' | '/' | '/admin' | '/admin-feedbacks' | '/feedbacks'
+  to:
+    | '/'
+    | '/admin'
+    | '/admin-feedbacks'
+    | '/casos'
+    | '/coordenacao'
+    | '/feedbacks'
+    | '/problemas'
+  id:
+    | '__root__'
+    | '/'
+    | '/admin'
+    | '/admin-feedbacks'
+    | '/casos'
+    | '/coordenacao'
+    | '/feedbacks'
+    | '/problemas'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
   AdminFeedbacksRoute: typeof AdminFeedbacksRoute
+  CasosRoute: typeof CasosRoute
+  CoordenacaoRoute: typeof CoordenacaoRoute
   FeedbacksRoute: typeof FeedbacksRoute
+  ProblemasRoute: typeof ProblemasRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -92,11 +144,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminFeedbacksRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/casos': {
+      id: '/casos'
+      path: '/casos'
+      fullPath: '/casos'
+      preLoaderRoute: typeof CasosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/coordenacao': {
+      id: '/coordenacao'
+      path: '/coordenacao'
+      fullPath: '/coordenacao'
+      preLoaderRoute: typeof CoordenacaoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/feedbacks': {
       id: '/feedbacks'
       path: '/feedbacks'
       fullPath: '/feedbacks'
       preLoaderRoute: typeof FeedbacksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/problemas': {
+      id: '/problemas'
+      path: '/problemas'
+      fullPath: '/problemas'
+      preLoaderRoute: typeof ProblemasRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -106,7 +179,10 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
   AdminFeedbacksRoute: AdminFeedbacksRoute,
+  CasosRoute: CasosRoute,
+  CoordenacaoRoute: CoordenacaoRoute,
   FeedbacksRoute: FeedbacksRoute,
+  ProblemasRoute: ProblemasRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
