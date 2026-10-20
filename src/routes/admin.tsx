@@ -27,9 +27,18 @@ import {
   useLoader,
 } from "@/lib/data";
 import { discordThreadUrl } from "@/lib/discord";
-import { generateWeekly, saveFeedback } from "@/lib/actions.functions";
+import { generateWeekly, loadRatings, saveFeedback } from "@/lib/actions.functions";
+import { RatingsList, RatingSummary } from "@/components/sa/Ratings";
 import { startJob, useJob } from "@/lib/jobs";
-import { brtWeekStart, fmtDay, fmtMinutes, fmtWhen, isoWeekKey } from "@/lib/sla";
+import {
+  brtMonthStart,
+  brtParts,
+  brtWeekStart,
+  fmtDay,
+  fmtMinutes,
+  fmtWhen,
+  isoWeekKey,
+} from "@/lib/sla";
 import type { CaseWithAnalysis } from "@/lib/supabase";
 import { useMounted, useWho } from "@/lib/prefs";
 
@@ -44,7 +53,7 @@ export const Route = createFileRoute("/admin")({
   ),
 });
 
-type Tab = "validar" | "boletim" | "ferramentas" | "historico";
+type Tab = "validar" | "boletim" | "avaliacoes" | "ferramentas" | "historico";
 
 function Admin() {
   const mounted = useMounted();
@@ -53,6 +62,7 @@ function Admin() {
   const tabs: [Tab, string, number?][] = [
     ["validar", "Validar análises", queue.data?.length],
     ["boletim", "Boletim da semana"],
+    ["avaliacoes", "Avaliações"],
     ["ferramentas", "Ferramentas"],
     ["historico", "Histórico de validações"],
   ];
@@ -93,6 +103,7 @@ function Admin() {
       {tab === "validar" && <Validate queue={queue} />}
       {tab === "boletim" && <Weekly />}
       {tab === "ferramentas" && <Tools onHistory={() => setTab("historico")} />}
+      {tab === "avaliacoes" && <AdminRatings />}
       {tab === "historico" && <History />}
     </>
   );
@@ -679,5 +690,145 @@ function History() {
         </table>
       </div>
     </section>
+  );
+}
+
+// ─── Avaliações do atendimento ──────────────────────────────────────────────
+
+type RatingPeriod = "mes" | "anterior" | "90";
+
+function AdminRatings() {
+  const [period, setPeriod] = useState<RatingPeriod>("mes");
+  const [team, setTeam] = useState("");
+  const data = useLoader(async () => {
+    const now = new Date();
+    const p = brtParts(now);
+    const prev = p.month === 1 ? { y: p.year - 1, m: 12 } : { y: p.year, m: p.month - 1 };
+    const range =
+      period === "mes"
+        ? [brtMonthStart(p.year, p.month), new Date(now.getTime() + 86_400_000)]
+        : period === "anterior"
+          ? [brtMonthStart(prev.y, prev.m), brtMonthStart(p.year, p.month)]
+          : [new Date(now.getTime() - 90 * 86_400_000), new Date(now.getTime() + 86_400_000)];
+    const res = await loadRatings({
+      data: { token: sessionToken(), from: range[0].toISOString(), to: range[1].toISOString() },
+    });
+    if (!res.ok) throw new Error(res.message);
+    return res.rows;
+  }, [period]);
+
+  const rows = (data.data ?? []).filter((r) => !team || r.resolver_team === team);
+  const exportCsv = () =>
+    downloadCsv(
+      "avaliacoes-atendimento.csv",
+      toCsv(
+        [
+          "Enviada em",
+          "Respondida em",
+          "Caso",
+          "Título",
+          "Resolvedor",
+          "Área",
+          "Avaliado por",
+          "Nota",
+          "Comentário",
+          "Situação",
+        ],
+        rows.map((r) => [
+          fmtWhen(r.sent_at),
+          r.answered_at ? fmtWhen(r.answered_at) : "",
+          r.case_id,
+          r.cases?.thread_title,
+          r.resolver_name,
+          r.resolver_team,
+          r.rater_name,
+          r.score,
+          r.comment,
+          r.score != null
+            ? "respondida"
+            : r.status === "falhou"
+              ? "mensagem bloqueada"
+              : new Date(r.expires_at) < new Date()
+                ? "prazo encerrado"
+                : "aguardando",
+        ]),
+      ),
+    );
+
+  return (
+    <>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div role="group" aria-label="Período" className="flex flex-wrap gap-1">
+          {(
+            [
+              ["mes", "Este mês"],
+              ["anterior", "Mês passado"],
+              ["90", "90 dias"],
+            ] as [RatingPeriod, string][]
+          ).map(([k, label]) => (
+            <button
+              key={k}
+              type="button"
+              aria-pressed={period === k}
+              onClick={() => setPeriod(k)}
+              className={[
+                "h-9 rounded-lg border px-3 text-[13px]",
+                period === k
+                  ? "border-brand bg-brand-soft font-bold text-brand-text"
+                  : "border-border bg-card",
+              ].join(" ")}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-2">
+          <label htmlFor="aval-area" className="text-[13px] text-muted-foreground">
+            Área
+          </label>
+          <select
+            id="aval-area"
+            value={team}
+            onChange={(e) => setTeam(e.target.value)}
+            className="h-9 rounded-lg border border-border bg-card px-2.5 text-foreground"
+          >
+            <option value="">Todas</option>
+            <option value="Suporte N2">Suporte N2</option>
+            <option value="Chatbot">Chatbot</option>
+            <option value="AM">Área de Membros</option>
+          </select>
+          <button type="button" onClick={exportCsv} className={btnSecondary}>
+            Exportar CSV
+          </button>
+        </div>
+      </div>
+      {data.error && <ErrorBox message={data.error} />}
+      {data.loading && !data.data ? (
+        <Loading />
+      ) : (
+        <>
+          <section aria-labelledby="aval-resumo" className="card overflow-hidden">
+            <div className="border-b border-line px-[18px] py-3.5">
+              <h2 id="aval-resumo" className="m-0 text-base font-bold">
+                Média por pessoa
+              </h2>
+              <div className="text-[12.5px] text-muted-foreground">
+                Quem abriu o tópico recebe a avaliação no Discord quando ele fecha e tem 2 dias para
+                responder.
+              </div>
+            </div>
+            <RatingSummary rows={rows} />
+          </section>
+          <section aria-labelledby="aval-lista" className="card overflow-hidden">
+            <div className="border-b border-line px-[18px] py-3.5">
+              <h2 id="aval-lista" className="m-0 text-base font-bold">
+                Todas as avaliações
+              </h2>
+            </div>
+            <RatingsList rows={rows} />
+          </section>
+        </>
+      )}
+    </>
   );
 }

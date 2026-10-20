@@ -17,6 +17,7 @@ import { AREA_NAME, caseArea, fmtMinutes, fmtWhen, waitingInfo } from "@/lib/sla
 import type { CaseWithAnalysis, Message } from "@/lib/supabase";
 import { lookupMember, isResolutive } from "@/lib/team";
 import { useMounted } from "@/lib/prefs";
+import { CaseRatingBox } from "@/components/sa/Ratings";
 
 type Search = CaseFilters & { caso?: number };
 
@@ -406,6 +407,7 @@ function CaseDetail({ id }: { id: number }) {
             <b>O que foi feito:</b> {a.resolution}
           </div>
         )}
+        <CaseRatingBox caseId={c.id} />
         <a
           href={discordThreadUrl(c)}
           target="_blank"

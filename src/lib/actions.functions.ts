@@ -169,3 +169,23 @@ export const loadRatings = createServerFn({ method: "POST" })
       return fail(e);
     }
   });
+
+/** Avaliação de um caso (ou null). Só com sessão de Coordenação/Admin. */
+export const loadCaseRating = createServerFn({ method: "POST" })
+  .validator((input: { token: string; caseId: number }) => input)
+  .handler(async ({ data }): Promise<Result<{ rating: Rating | null }>> => {
+    try {
+      await requireRole(data.token, "coord");
+      const { data: row, error } = await serviceClient()
+        .from("case_ratings")
+        .select(
+          "case_id, rater_name, resolver_name, resolver_team, score, comment, status, sent_at, answered_at, expires_at, cases(thread_title, idclinic)",
+        )
+        .eq("case_id", data.caseId)
+        .maybeSingle();
+      if (error) return { ok: false, message: error.message };
+      return { ok: true, rating: (row as unknown as Rating) ?? null };
+    } catch (e) {
+      return fail(e);
+    }
+  });
