@@ -105,7 +105,7 @@ export const Route = createRootRoute({
   }),
   shellComponent: RootShell,
   component: RootComponent,
-  errorComponent: ErrorComponent,
+  errorComponent: lazy(() => Promise.resolve({ default: ErrorComponent })),
   notFoundComponent: NotFoundComponent,
 });
 
