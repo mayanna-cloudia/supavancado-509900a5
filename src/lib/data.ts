@@ -165,7 +165,7 @@ export async function loadCasesClosedBetween(from: Date, to: Date): Promise<Ligh
 
 export type CaseFilters = {
   q?: string;
-  status?: "abertos" | "todos" | "resolvidos" | "parados";
+  status?: "abertos" | "todos" | "resolvidos" | "parados" | "semretorno";
   prioridade?: "P1" | "P2" | "P3";
   area?: "N2" | "Chatbot" | "AM";
   idclinic?: string;
@@ -200,6 +200,7 @@ export async function loadCasesPage(f: CaseFilters, all = false) {
 
   if (f.status === "abertos" || f.status === "parados") query = query.eq("status", "aberto");
   if (f.status === "resolvidos") query = query.in("status", ["fechado", "resolvido"]);
+  if (f.status === "semretorno") query = query.eq("no_response", true);
   if (f.prioridade) query = query.eq("priority", f.prioridade);
   if (f.area) query = query.contains("area_tags", [f.area]);
   if (f.pessoa) query = query.contains("person_tags", [f.pessoa]);

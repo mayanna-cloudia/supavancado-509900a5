@@ -30,7 +30,9 @@ export const Route = createFileRoute("/casos")({
   head: () => ({ meta: [{ title: "Casos · Suporte Avançado" }] }),
   validateSearch: (s: Record<string, unknown>): Search => ({
     q: str(s.q),
-    status: (["abertos", "todos", "resolvidos", "parados"] as const).find((x) => x === s.status),
+    status: (["abertos", "todos", "resolvidos", "parados", "semretorno"] as const).find(
+      (x) => x === s.status,
+    ),
     prioridade: (["P1", "P2", "P3"] as const).find((x) => x === s.prioridade),
     area: (["N2", "Chatbot", "AM"] as const).find((x) => x === s.area),
     idclinic: str(s.idclinic) ?? (typeof s.idclinic === "number" ? String(s.idclinic) : undefined),
@@ -187,6 +189,7 @@ function Cases() {
           options={[
             ["abertos", "Abertos"],
             ["parados", "Parados há 2+ dias"],
+            ["semretorno", "Fechados sem retorno"],
             ["resolvidos", "Resolvidos"],
             ["todos", "Todos"],
           ]}
@@ -364,7 +367,7 @@ function CaseRow({ c, on, onPick }: { c: CaseWithAnalysis; on: boolean; onPick: 
           {fmtWhen(c.opened_at)}
         </span>
       </span>
-      <StatusPill status={c.status} waitingClient={waitingClient} />
+      <StatusPill status={c.status} waitingClient={waitingClient} noResponse={c.no_response} />
     </button>
   );
 }
@@ -382,7 +385,11 @@ function CaseDetail({ id }: { id: number }) {
       <div className="flex flex-col gap-2 border-b border-line px-[18px] py-4">
         <div className="flex flex-wrap items-center gap-1.5">
           <PrioPill p={c.priority} long />
-          <StatusPill status={c.status} waitingClient={a?.waiting_for === "client"} />
+          <StatusPill
+            status={c.status}
+            waitingClient={a?.waiting_for === "client"}
+            noResponse={c.no_response}
+          />
           {c.person_tags.map((t) => (
             <span key={t} className="rounded-full bg-hover px-2 py-0.5 text-xs">
               {t}

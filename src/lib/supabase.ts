@@ -30,6 +30,11 @@ export type Case = {
   closed_at: string | null;
   last_activity_at: string;
   sla_alerts_sent: string[];
+  /** Lembretes enviados a quem abriu o tópico (follow-up do bot). */
+  followups_sent?: string[];
+  /** Fechado pelo bot por falta de retorno de quem abriu o tópico. */
+  no_response?: boolean;
+  no_response_at?: string | null;
 };
 
 export type Attachment = {

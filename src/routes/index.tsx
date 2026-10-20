@@ -161,7 +161,10 @@ function Today() {
           className="bg-grad-yellow text-[#3d2e00]"
           value={client.length}
           label="Esperando a clínica"
-          hint="não conta no SLA"
+          hint={(() => {
+            const n = client.filter((x) => (x.c.followups_sent?.length ?? 0) > 0).length;
+            return n ? `${n} com lembrete enviado · não conta no SLA` : "não conta no SLA";
+          })()}
         />
         <ResolvedKpi recent={recent.data} />
       </div>
@@ -232,7 +235,9 @@ function Today() {
                     {fmtWaiting(w)}
                   </span>
                   <span className="text-muted-foreground">
-                    {w.on === "client" ? "pausado" : `SLA ${w.slaLabel}`}
+                    {w.on === "client"
+                      ? followupLabel(c.followups_sent?.length ?? 0)
+                      : `SLA ${w.slaLabel}`}
                   </span>
                 </div>
                 {w.on === "team" && (
@@ -455,4 +460,11 @@ function SidePanels({
       </section>
     </>
   );
+}
+
+/** Situação do follow-up do bot para quem abriu o tópico e não respondeu. */
+function followupLabel(sent: number): string {
+  if (sent >= 2) return "2º lembrete · encerra em 2 dias úteis";
+  if (sent === 1) return "1º lembrete enviado";
+  return "lembrete com 1 dia útil";
 }

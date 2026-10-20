@@ -46,11 +46,19 @@ export function PrioPill({ p, long = false }: { p: Priority | null; long?: boole
 export function StatusPill({
   status,
   waitingClient,
+  noResponse,
 }: {
   status: CaseStatus;
   waitingClient?: boolean;
+  /** Fechado pelo bot porque quem abriu o tópico não respondeu. */
+  noResponse?: boolean;
 }) {
-  if (status !== "aberto") return <Pill tone="green">Resolvido</Pill>;
+  if (status !== "aberto")
+    return noResponse ? (
+      <Pill tone="orange">Sem retorno</Pill>
+    ) : (
+      <Pill tone="green">Resolvido</Pill>
+    );
   return waitingClient ? (
     <Pill tone="yellow">Esperando a clínica</Pill>
   ) : (
