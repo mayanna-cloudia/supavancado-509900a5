@@ -1,8 +1,8 @@
 import { lazy } from "react";
-import { Outlet, Link, createRootRoute, HeadContent, Scripts, useRouter } from "@tanstack/react-router";
+import { Outlet, Link, createRootRoute, HeadContent, Scripts, useRouter, type ErrorComponentProps } from "@tanstack/react-router";
 import { Toaster } from "@/components/ui/sonner";
 
-function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
+function ErrorComponent({ error, reset }: ErrorComponentProps) {
   const router = useRouter();
 
   return (
