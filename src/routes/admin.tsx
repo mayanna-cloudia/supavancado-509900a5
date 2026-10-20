@@ -432,12 +432,22 @@ function Weekly() {
           {summaries.loading && !summaries.data ? (
             <Loading />
           ) : saved ? (
-            <Markdown text={saved.content.text} />
+            <>
+              <Markdown text={saved.content.text} />
+              <div
+                className={`mt-4 border-t border-line pt-3 text-[12.5px] ${saved.content.text.length > 2000 ? "text-red" : "text-muted-foreground"}`}
+              >
+                {saved.content.text.length.toLocaleString("pt-BR")} caracteres ·{" "}
+                {saved.content.text.length > 2000
+                  ? "passa do limite de uma mensagem do Discord (2.000). Gere de novo."
+                  : "cabe numa mensagem do Discord."}
+              </div>
+            </>
           ) : (
             <Empty>
               {busy
                 ? "A IA está escrevendo o boletim, leva cerca de um minuto…"
-                : "Ainda não tem boletim desta semana. Clique em “Gerar boletim”: a IA lê os casos resolvidos e escreve panorama, principais problemas, pontos de atenção e glossário."}
+                : "Ainda não tem boletim desta semana. Clique em “Gerar boletim”: a IA lê os casos resolvidos e escreve um resumo curto, que cabe numa mensagem do Discord."}
             </Empty>
           )}
         </div>

@@ -125,8 +125,14 @@ export function Markdown({ text }: { text: string }) {
         i++;
       }
       blocks.push(
+        // Quebra de linha simples conta, como no Discord
         <p key={key} className="m-0">
-          {inline(para.join(" "), key)}
+          {para.map((line, j) => (
+            <span key={j}>
+              {j > 0 && <br />}
+              {inline(line, `${key}l${j}`)}
+            </span>
+          ))}
         </p>,
       );
     }
