@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { AlertTriangle } from "lucide-react";
 import { useMemo, useState } from "react";
 import { AppShell, TopSearch } from "@/components/shell/AppShell";
@@ -35,13 +35,21 @@ import {
 } from "@/lib/sla";
 import type { Message } from "@/lib/supabase";
 import { groupBy, mostCommon } from "@/lib/group";
+import { legacyTarget } from "@/lib/legacyLinks";
+
+type Tab = "todos" | "meus" | Area | "clinica";
+const TABS: Tab[] = ["todos", "meus", "n2", "chatbot", "am", "clinica"];
 
 export const Route = createFileRoute("/")({
   head: () => ({ meta: [{ title: "Hoje · Suporte Avançado" }] }),
+  // Guarda os parâmetros como vieram: os do painel antigo são traduzidos no beforeLoad
+  validateSearch: (s: Record<string, unknown>) => s as { fila?: string } & Record<string, unknown>,
+  beforeLoad: ({ search }) => {
+    const target = legacyTarget(search);
+    if (target) throw redirect({ to: target.to, search: target.search as never, replace: true });
+  },
   component: TodayPage,
 });
-
-type Tab = "todos" | "meus" | Area | "clinica";
 const DAY = 86_400_000;
 
 function TodayPage() {
@@ -55,7 +63,9 @@ function TodayPage() {
 function Today() {
   const mounted = useMounted();
   const { person } = useWho();
-  const [tab, setTab] = useState<Tab>("todos");
+  const { fila } = Route.useSearch();
+  // ?fila=n2 abre direto na fila da área (é para onde vai o link antigo ?tab=sla&area=SuporteN2)
+  const [tab, setTab] = useState<Tab>(() => (TABS.includes(fila as Tab) ? (fila as Tab) : "todos"));
   const board = useLoader(loadOpenBoard, [], ["cases", "analyses", "messages"]);
   const recent = useLoader(
     async () => {

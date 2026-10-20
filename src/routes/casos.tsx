@@ -34,7 +34,8 @@ export const Route = createFileRoute("/casos")({
       (x) => x === s.status,
     ),
     prioridade: (["P1", "P2", "P3"] as const).find((x) => x === s.prioridade),
-    area: (["N2", "Chatbot", "AM"] as const).find((x) => x === s.area),
+    area: (["N2", "Chatbot", "AM", "sem"] as const).find((x) => x === s.area),
+    categoria: str(s.categoria),
     idclinic: str(s.idclinic) ?? (typeof s.idclinic === "number" ? String(s.idclinic) : undefined),
     problema: str(s.problema),
     pessoa: str(s.pessoa),
@@ -216,6 +217,7 @@ function Cases() {
             ["N2", "Suporte N2"],
             ["Chatbot", "Chatbot"],
             ["AM", "Área de Membros"],
+            ["sem", "Sem área"],
           ]}
         />
         <div className="flex flex-[0_1_130px] flex-col gap-1">
@@ -244,14 +246,24 @@ function Cases() {
           value={search.ate ?? ""}
           onChange={(v) => set({ ate: v || undefined })}
         />
-        {(search.problema || search.pessoa) && (
-          <button
-            type="button"
-            onClick={() => set({ problema: undefined, pessoa: undefined })}
-            className="h-10 rounded-lg border border-brand bg-brand-soft px-3 text-[13px] text-brand-text"
-          >
-            {search.problema ? `Problema: ${search.problema}` : `Pessoa: ${search.pessoa}`} ✕
-          </button>
+        {(
+          [
+            ["problema", "Problema"],
+            ["categoria", "Categoria"],
+            ["pessoa", "Pessoa"],
+          ] as const
+        ).map(([key, label]) =>
+          search[key] ? (
+            <button
+              key={key}
+              type="button"
+              onClick={() => set({ [key]: undefined })}
+              aria-label={`Tirar o filtro ${label}`}
+              className="h-10 rounded-lg border border-brand bg-brand-soft px-3 text-[13px] text-brand-text"
+            >
+              {label}: {search[key]} ✕
+            </button>
+          ) : null,
         )}
       </div>
 

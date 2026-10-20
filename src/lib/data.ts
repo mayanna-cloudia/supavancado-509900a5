@@ -167,7 +167,10 @@ export type CaseFilters = {
   q?: string;
   status?: "abertos" | "todos" | "resolvidos" | "parados" | "semretorno";
   prioridade?: "P1" | "P2" | "P3";
-  area?: "N2" | "Chatbot" | "AM";
+  /** "sem" = sem tag de área nem de pessoa (o antigo "unassigned"). */
+  area?: "N2" | "Chatbot" | "AM" | "sem";
+  /** Categoria da análise da IA (Bug, Configuração, Dúvida…). */
+  categoria?: string;
   idclinic?: string;
   problema?: string;
   pessoa?: string;
@@ -195,18 +198,22 @@ export async function loadCasesPage(f: CaseFilters, all = false) {
 
   let query = supabase
     .from("cases")
-    .select(f.problema ? "*, analyses!inner(*)" : "*, analyses(*)", { count: "exact" })
+    .select(f.problema || f.categoria ? "*, analyses!inner(*)" : "*, analyses(*)", {
+      count: "exact",
+    })
     .eq("archived", false);
 
   if (f.status === "abertos" || f.status === "parados") query = query.eq("status", "aberto");
   if (f.status === "resolvidos") query = query.in("status", ["fechado", "resolvido"]);
   if (f.status === "semretorno") query = query.eq("no_response", true);
   if (f.prioridade) query = query.eq("priority", f.prioridade);
-  if (f.area) query = query.contains("area_tags", [f.area]);
+  if (f.area === "sem") query = query.eq("area_tags", "{}").eq("person_tags", "{}");
+  else if (f.area) query = query.contains("area_tags", [f.area]);
   if (f.pessoa) query = query.contains("person_tags", [f.pessoa]);
   if (f.idclinic) query = query.eq("idclinic", f.idclinic);
   if (f.ids) query = query.in("id", f.ids.length ? f.ids : [0]);
   if (f.problema) query = query.eq("analyses.problem_fingerprint", f.problema);
+  if (f.categoria) query = query.ilike("analyses.category", f.categoria);
   if (f.de) query = query.gte("opened_at", new Date(`${f.de}T00:00:00-03:00`).toISOString());
   if (f.ate)
     query = query.lt(
