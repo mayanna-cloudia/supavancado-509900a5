@@ -1,8 +1,5 @@
-import { createRouter, useRouter } from "@tanstack/react-router";
+import { createRouter } from "@tanstack/react-router";
 import { routeTree } from "./routeTree.gen";
-
-function DefaultErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
-  const router = useRouter();
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -60,7 +57,6 @@ export const getRouter = () => {
     context: {},
     scrollRestoration: true,
     defaultPreloadStaleTime: 0,
-    defaultErrorComponent: DefaultErrorComponent,
   });
 
   return router;
