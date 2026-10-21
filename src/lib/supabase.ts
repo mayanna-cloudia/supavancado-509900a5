@@ -1,13 +1,20 @@
 import { createClient } from "@supabase/supabase-js";
 
-// Banco do Suporte Avançado 2.0. A chave anon é pública por desenho: só lê (RLS).
+// Banco do Suporte Avançado 2.0. A chave anon é pública por desenho: sozinha não lê nada.
+// A leitura exige login Google @cloudia.com.br (RLS, ver login-google.sql).
 // Escritas passam pelas server functions, com a chave de serviço guardada nos secrets.
 export const SUPABASE_URL = "https://mqrotynkjxfknlqppwna.supabase.co";
 const SUPABASE_ANON_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1xcm90eW5ranhma25scXBwd25hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI0NzMwODgsImV4cCI6MjEwODA0OTA4OH0.202i_OpRCjyS58zQipB-kQl8xou9AcyzdVHsh0KF4zo";
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: { persistSession: false },
+  // A sessão do Google fica no navegador; no servidor (SSR) não há sessão
+  auth: {
+    persistSession: typeof window !== "undefined",
+    autoRefreshToken: typeof window !== "undefined",
+    detectSessionInUrl: true,
+    flowType: "pkce",
+  },
   realtime: { params: { eventsPerSecond: 10 } },
 });
 

@@ -208,8 +208,9 @@ const clean = (v: unknown, max: number) => (typeof v === "string" ? v.trim().sli
 export const sendPanelFeedback = createServerFn({ method: "POST" })
   .validator(
     (input: {
+      /** Token do login Google: o e-mail sai dele, não do formulário. */
+      token: string;
       name: string;
-      email: string;
       score: number;
       screen?: string;
       good?: string;
@@ -218,12 +219,13 @@ export const sendPanelFeedback = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }): Promise<Result<{ already?: boolean }>> => {
     try {
+      const { data: auth } = await serviceClient().auth.getUser(clean(data.token, 4000));
+      const email = (auth.user?.email ?? "").toLowerCase();
+      if (auth.user?.app_metadata?.provider !== "google" || !email.endsWith("@cloudia.com.br"))
+        return { ok: false, message: "Entre com o seu Google @cloudia.com.br para responder." };
       const name = clean(data.name, 120);
-      const email = clean(data.email, 200).toLowerCase();
       const score = Number(data.score);
       if (name.length < 2) return { ok: false, message: "Escreva seu nome." };
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email))
-        return { ok: false, message: "Esse e-mail não parece válido." };
       if (!(score >= 1 && score <= 5)) return { ok: false, message: "Escolha uma nota de 1 a 5." };
       const screen = SCREENS.includes(clean(data.screen, 60)) ? clean(data.screen, 60) : null;
       const { error } = await serviceClient()

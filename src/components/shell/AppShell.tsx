@@ -10,12 +10,14 @@ import {
   Sun,
   PanelLeft,
   Search,
+  LogOut,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { useMenuCollapsed, useMounted, useTheme, useWho } from "@/lib/prefs";
 import { PANEL_PEOPLE } from "@/lib/team";
 import { brtParts } from "@/lib/sla";
 import { JobBanner } from "./JobBanner";
+import { signOut } from "@/lib/auth";
 
 type NavItem = { to: string; label: string; icon: typeof Home; restricted?: boolean };
 
@@ -167,6 +169,17 @@ export function AppShell({ children, actions }: { children: ReactNode; actions?:
                 {mounted ? (person?.area ?? "nome não escolhido") : " "}
               </span>
             </div>
+          )}
+          {open && (
+            <button
+              type="button"
+              onClick={() => signOut()}
+              title="Sair da conta Google"
+              aria-label="Sair da conta Google"
+              className="ml-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-hover hover:text-foreground"
+            >
+              <LogOut className="h-[18px] w-[18px]" strokeWidth={1.8} />
+            </button>
           )}
         </div>
       </aside>

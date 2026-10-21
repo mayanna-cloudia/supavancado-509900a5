@@ -2,6 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { sendPanelFeedback } from "@/lib/actions.functions";
+import { accessToken } from "@/lib/auth";
+import { supabase } from "@/lib/supabase";
 import { useTheme } from "@/lib/prefs";
 import { Novidades } from "@/components/sa/Novidades";
 
@@ -43,6 +45,13 @@ function FeedbackPage() {
   useEffect(() => {
     setSent(readSent());
     setReady(true);
+    // Nome e e-mail vêm do login Google; o e-mail não muda (o servidor confere pelo login)
+    supabase.auth.getSession().then(({ data }) => {
+      const user = data.session?.user;
+      if (!user) return;
+      setEmail(user.email ?? "");
+      setName((n) => n || String(user.user_metadata?.full_name ?? user.user_metadata?.name ?? ""));
+    });
   }, []);
 
   const submit = async (e: React.FormEvent) => {
@@ -53,7 +62,9 @@ function FeedbackPage() {
     }
     setBusy(true);
     setError("");
-    const res = await sendPanelFeedback({ data: { name, email, score, screen, good, improve } });
+    const res = await sendPanelFeedback({
+      data: { token: await accessToken(), name, score, screen, good, improve },
+    });
     setBusy(false);
     if (!res.ok) {
       setError(res.message);
@@ -162,10 +173,13 @@ function FeedbackPage() {
                   autoComplete="email"
                   maxLength={200}
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="voce@cloudia.com.br"
-                  className="h-11 rounded-lg border border-border bg-card px-3 text-foreground"
+                  readOnly
+                  aria-describedby="fb-email-nota"
+                  className="h-11 rounded-lg border border-border bg-hover px-3 text-muted-foreground"
                 />
+                <span id="fb-email-nota" className="text-xs text-muted-foreground">
+                  Vem do seu login Google.
+                </span>
               </div>
             </div>
 

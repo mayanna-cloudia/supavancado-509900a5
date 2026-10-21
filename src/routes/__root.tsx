@@ -9,6 +9,7 @@ import {
   type ErrorComponentProps,
 } from "@tanstack/react-router";
 import { Toaster } from "@/components/ui/sonner";
+import { GoogleGate } from "@/components/shell/GoogleGate";
 
 function ErrorComponent({ error, reset }: ErrorComponentProps) {
   const router = useRouter();
@@ -139,7 +140,9 @@ function RootShell({ children }: { children: React.ReactNode }) {
 function RootComponent() {
   return (
     <>
-      <Outlet />
+      <GoogleGate>
+        <Outlet />
+      </GoogleGate>
       <Toaster position="bottom-right" theme="system" richColors closeButton />
     </>
   );
