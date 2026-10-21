@@ -72,6 +72,9 @@ export type Analysis = {
   problem_label: string | null;
   problem_fingerprint: string | null;
   waiting_for: WaitingFor | null;
+  /** Usuário do Discord de quem precisa agir agora (a IA lê a conversa inteira). */
+  pending_username?: string | null;
+  pending_reason?: string | null;
   model: string | null;
   analyzed_at: string;
 };

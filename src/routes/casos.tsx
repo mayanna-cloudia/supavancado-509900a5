@@ -487,6 +487,12 @@ function CaseDetail({
         ) : (
           <div className="text-muted-foreground">Ainda sem análise da IA.</div>
         )}
+        {c.status === "aberto" && a?.pending_username && (
+          <div className="rounded-lg bg-hover px-3 py-2 text-[13.5px]">
+            ⏳ <b>Aguardando: {lookupMember(a.pending_username).name}</b>
+            {a.pending_reason ? `, ${a.pending_reason}` : ""}
+          </div>
+        )}
         {a?.resolution && (
           <div className="text-[13.5px]">
             <b>O que foi feito:</b> {a.resolution}
