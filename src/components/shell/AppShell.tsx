@@ -105,7 +105,8 @@ export function AppShell({ children, actions }: { children: ReactNode; actions?:
     <div className="flex min-h-screen flex-wrap bg-surface text-foreground">
       <aside
         className={[
-          "flex min-w-0 flex-col gap-1 bg-surface p-3",
+          // Com o menu ao lado do conteúdo, ele acompanha a tela: modo escuro, nome e Sair ficam sempre visíveis
+          "flex min-w-0 flex-col gap-1 bg-surface p-3 min-[820px]:sticky min-[820px]:top-0 min-[820px]:h-screen min-[820px]:self-start min-[820px]:overflow-y-auto",
           open ? "flex-[1_1_248px] md:max-w-[272px]" : "flex-[0_0_76px]",
         ].join(" ")}
       >
